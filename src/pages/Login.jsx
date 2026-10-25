@@ -186,40 +186,32 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="login-divider">or quick 1-click login</div>
-
-        <div className="demo-login-grid">
-          {(() => {
-            const azeez = demoUsers.find(u => u.email === 'hazytarzan12@gmail.com');
-            const otherUsers = demoUsers.filter(u => u.email !== 'hazytarzan12@gmail.com');
-            const displayList = azeez ? [azeez, ...otherUsers.slice(0, 3)] : demoUsers.slice(0, 4);
-            return displayList.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                className="demo-login-btn"
-                onClick={() => handleQuickLogin(u)}
-                title={`Login as ${u.name}`}
-                style={u.email === 'hazytarzan12@gmail.com' ? { borderColor: 'rgba(0, 229, 255, 0.45)', background: 'rgba(0, 229, 255, 0.08)' } : {}}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <strong style={{ color: '#fff' }}>{u.name}</strong>
-                    {u.email === 'hazytarzan12@gmail.com' && (
-                      <span className="badge badge-cyan" style={{ fontSize: '0.62rem', padding: '1px 6px' }}>
-                        2 Genesis Nodes
-                      </span>
-                    )}
+        {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === 'true' && (
+          <>
+            <div className="login-divider">or quick 1-click login (Demo Mode)</div>
+            <div className="demo-login-grid">
+              {demoUsers.slice(0, 3).map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className="demo-login-btn"
+                  onClick={() => handleQuickLogin(u)}
+                  title={`Login as ${u.name}`}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <strong style={{ color: '#fff' }}>{u.name}</strong>
+                    </div>
+                    <div style={{ color: '#94a3b8', fontSize: '0.74rem' }}>
+                      {u.email} • {u.tierName || 'Node'}
+                    </div>
                   </div>
-                  <div style={{ color: '#94a3b8', fontSize: '0.74rem' }}>
-                    {u.email} • {u.tierName || 'Node'}
-                  </div>
-                </div>
-                <span style={{ color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600 }}>Login →</span>
-              </button>
-            ));
-          })()}
-        </div>
+                  <span style={{ color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600 }}>Login →</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="login-footer">
           Don't have an account?{' '}

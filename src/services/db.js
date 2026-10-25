@@ -268,10 +268,7 @@ export function ensureInitialData() {
     }
 
     const current = getStored(STORAGE_KEYS.CURRENT_USER, null);
-    if (!current) {
-      const azeezUser = DEFAULT_USERS.find(u => u.email === 'hazytarzan12@gmail.com') || DEFAULT_USERS[0];
-      setStored(STORAGE_KEYS.CURRENT_USER, azeezUser);
-    } else if (current && current.id === 'd0000000-0000-0000-0000-000000000001' && (!current.stakedTierIds || current.stakedTierIds.length <= 1)) {
+    if (current && current.id === 'd0000000-0000-0000-0000-000000000001' && (!current.stakedTierIds || current.stakedTierIds.length <= 1)) {
       current.stakedTierIds = [1, 3, 5];
       current.entryFee = 21000;
       setStored(STORAGE_KEYS.CURRENT_USER, current);
