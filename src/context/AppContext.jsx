@@ -9,7 +9,7 @@ import {
   MOCK_POOLS_US,
   buildTierData,
 } from '../data/platform';
-import { dbAuth, dbKYC, dbBank, dbDocs, dbRefunds, dbTransactions, dbNetwork, dbAdmin, dbConnection } from '../services/db';
+import { dbAuth, dbKYC, dbBank, dbDocs, dbRefunds, dbTransactions, dbNetwork, dbAdmin, dbConnection, getSupabase } from '../services/db';
 
 const Ctx = createContext(null);
 
@@ -24,8 +24,9 @@ export default function AppContext({ children }) {
   const [selectedTier, setSelectedTier] = useState(null);
   const [dbStatus,     setDbStatus]     = useState(dbConnection.getStatusSummary());
 
-  // Restore authenticated session from persistent DB on mount
+  // Restore authenticated session & listen to Supabase Auth (e.g. Google OAuth redirect)
   useEffect(() => {
+    // 1. Initial local store check
     const active = dbAuth.getCurrentUser();
     if (active) {
       setUser(active);
@@ -34,6 +35,46 @@ export default function AppContext({ children }) {
         setRegionCode(active.region);
         localStorage.setItem('nodevault_region', active.region);
       }
+    }
+
+    // 2. Supabase Cloud Session & OAuth Listener (Google Sign-In)
+    const sb = getSupabase();
+    if (sb) {
+      sb.auth.getSession().then(async ({ data: { session } }) => {
+        if (session?.user) {
+          const synced = await dbAuth.syncSupabaseUser(session.user);
+          if (synced) {
+            setUser(synced);
+            setIsLoggedIn(true);
+            if (synced.region) {
+              setRegionCode(synced.region);
+              localStorage.setItem('nodevault_region', synced.region);
+            }
+          }
+        }
+      }).catch(err => console.warn('Supabase getSession error:', err));
+
+      const { data: { subscription } } = sb.auth.onAuthStateChange(async (event, session) => {
+        if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
+          const synced = await dbAuth.syncSupabaseUser(session.user);
+          if (synced) {
+            setUser(synced);
+            setIsLoggedIn(true);
+            if (synced.region) {
+              setRegionCode(synced.region);
+              localStorage.setItem('nodevault_region', synced.region);
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setIsLoggedIn(false);
+          localStorage.removeItem('nodevault_current_user');
+        }
+      });
+
+      return () => {
+        subscription?.unsubscribe();
+      };
     }
   }, []);
 

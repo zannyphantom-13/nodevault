@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { notificationService } from '../services/notifications';
@@ -21,12 +21,28 @@ export default function Register() {
   const [errors, setErrors]         = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [agreed, setAgreed]         = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Email Ownership Verification State
+  const [pendingVerification, setPendingVerification] = useState(null);
+  const [otpCode, setOtpCode]       = useState('');
+  const [otpError, setOtpError]     = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Post-registration onboarding state
   const [createdUser, setCreatedUser] = useState(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
 
   const isNG = region?.code === 'NG';
+  const isGmail = form.email.toLowerCase().includes('@gmail.com') || form.email.toLowerCase().includes('@googlemail.com');
+
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   const validate = () => {
     const e = {};
@@ -41,6 +57,23 @@ export default function Register() {
     return e;
   };
 
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await dbAuth.signInWithGoogle();
+      // If demo sandbox fallback returns instantly:
+      const current = dbAuth.getCurrentUser();
+      if (current) {
+        login(current);
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      alert(err.message || 'Google Sign-In could not be initialized.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
     const valErrors = validate();
@@ -49,7 +82,7 @@ export default function Register() {
     setSubmitting(true);
 
     try {
-      const newUser = await dbAuth.register({
+      const res = await dbAuth.register({
         email: form.email,
         password: form.password,
         name: form.name,
@@ -59,15 +92,63 @@ export default function Register() {
         tier: null, // Node staking happens after Bank & KYC are verified
       });
 
-      // Dispatch welcome notifications & welcome email
-      notificationService.triggerNewUserOnboarding(newUser);
+      if (res.needsVerification) {
+        setPendingVerification({
+          email: form.email,
+          demoCode: res.demoCode,
+          provider: res.provider,
+        });
+        setResendCooldown(60);
+        setSubmitting(false);
+        return;
+      }
 
-      login(newUser);
-      setCreatedUser(newUser);
+      // If user was auto-confirmed
+      notificationService.triggerNewUserOnboarding(res.user);
+      login(res.user);
+      setCreatedUser(res.user);
       setSubmitting(false);
     } catch (err) {
       alert(err.message || 'Registration failed. Please check your credentials.');
       setSubmitting(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otpCode.trim() || otpCode.trim().length < 6) {
+      setOtpError('Please enter the full 6-digit verification code.');
+      return;
+    }
+    setOtpError('');
+    setVerifyingOtp(true);
+
+    try {
+      const verifiedUser = await dbAuth.verifyEmailOtp({
+        email: pendingVerification.email,
+        token: otpCode.trim(),
+      });
+      notificationService.triggerNewUserOnboarding(verifiedUser);
+      login(verifiedUser);
+      setCreatedUser(verifiedUser);
+    } catch (err) {
+      setOtpError(err.message || 'Verification failed. Please check the code and try again.');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    try {
+      const res = await dbAuth.resendOtp(pendingVerification.email);
+      if (res?.demoCode) {
+        setPendingVerification(p => ({ ...p, demoCode: res.demoCode }));
+      }
+      setResendCooldown(60);
+      alert('A new 6-digit verification code has been dispatched.');
+    } catch (err) {
+      alert(err.message || 'Could not resend verification code.');
     }
   };
 
@@ -241,13 +322,131 @@ export default function Register() {
   }
 
   // ══════════════════════════════════════════════════════
-  // ACCOUNT REGISTRATION FORM
+  // STEP 2: EMAIL OWNERSHIP VERIFICATION SCREEN
+  // ══════════════════════════════════════════════════════
+  if (pendingVerification) {
+    return (
+      <div className="register-page">
+        <div className="container" style={{ maxWidth: 500 }}>
+          <div className="reg-card card" style={{ textAlign: 'center', padding: '2.5rem 2rem' }}>
+            <div style={{ width: 56, height: 56, margin: '0 auto 1.25rem', borderRadius: '50%', background: 'rgba(0, 229, 255, 0.1)', border: '1px solid rgba(0, 229, 255, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem' }}>
+              🛡️
+            </div>
+
+            <h1 className="reg-card-title" style={{ fontSize: '1.6rem', marginBottom: '0.4rem' }}>
+              Verify Email Ownership
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+              To ensure protocol security and prevent unauthorized usage of email accounts, a 6-digit verification code was dispatched to:
+              <br />
+              <strong style={{ color: 'var(--accent-cyan)', fontSize: '0.95rem' }}>{pendingVerification.email}</strong>
+            </p>
+
+            {pendingVerification.demoCode && (
+              <div
+                style={{
+                  background: 'rgba(250, 204, 21, 0.08)',
+                  border: '1px solid rgba(250, 204, 21, 0.3)',
+                  borderRadius: '10px',
+                  padding: '0.75rem',
+                  marginBottom: '1.5rem',
+                  fontSize: '0.82rem',
+                  color: '#facc15',
+                }}
+              >
+                ⚡ <strong>Local Sandbox Mode:</strong> Your verification code is <code style={{ fontSize: '1rem', fontWeight: 800, background: 'rgba(0,0,0,0.4)', padding: '2px 8px', borderRadius: '4px' }}>{pendingVerification.demoCode}</code> (or enter <code style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '4px' }}>123456</code>).
+              </div>
+            )}
+
+            {otpError && (
+              <div
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '10px',
+                  padding: '0.75rem',
+                  marginBottom: '1.25rem',
+                  fontSize: '0.82rem',
+                  color: '#ef4444',
+                }}
+              >
+                ⚠️ {otpError}
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyOtp}>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Enter 6-Digit Code
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  autoFocus
+                  placeholder="••••••"
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="input"
+                  style={{
+                    fontSize: '1.8rem',
+                    textAlign: 'center',
+                    letterSpacing: '0.4em',
+                    fontWeight: 700,
+                    padding: '0.75rem 1rem',
+                    fontFamily: 'monospace',
+                  }}
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary btn-full"
+                style={{ padding: '0.85rem' }}
+                disabled={verifyingOtp || otpCode.length < 6}
+              >
+                {verifyingOtp ? 'Verifying Ownership…' : 'Verify & Activate Account →'}
+              </button>
+            </form>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', fontSize: '0.82rem' }}>
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={resendCooldown > 0}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: resendCooldown > 0 ? '#64748b' : 'var(--accent-cyan)',
+                  cursor: resendCooldown > 0 ? 'default' : 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend Code'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPendingVerification(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                Edit Email
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════
+  // STEP 1: ACCOUNT REGISTRATION FORM
   // ══════════════════════════════════════════════════════
   return (
     <div className="register-page">
       <div className="container" style={{ maxWidth: 540 }}>
         <div className="reg-card card">
-          <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <img src="/logo.svg" alt="NodeVault" width="36" height="36" />
               <span style={{ fontSize: '1.4rem', fontWeight: 800 }}>
@@ -258,6 +457,29 @@ export default function Register() {
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
               Create your account first before staking on Genesis Nodes.
             </p>
+          </div>
+
+          {/* Google OAuth 1-Click Verification Button */}
+          <button
+            type="button"
+            className="btn-google-auth"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading}
+          >
+            <svg width="20" height="20" viewBox="0 0 18 18">
+              <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
+              <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+              <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/>
+              <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+            </svg>
+            <span>{googleLoading ? 'Connecting to Google...' : 'Continue with Google'}</span>
+          </button>
+          <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#64748b', marginTop: '0.35rem', marginBottom: '1.25rem' }}>
+            🔒 Instant verified ownership & 1-click account access
+          </div>
+
+          <div className="login-divider" style={{ margin: '1rem 0 1.5rem' }}>
+            or register with email
           </div>
 
           <form className="reg-form" onSubmit={handleRegister}>
@@ -287,6 +509,29 @@ export default function Register() {
                 required
               />
               {errors.email && <span className="reg-error">{errors.email}</span>}
+
+              {/* Gmail Ownership Protection Helper Banner */}
+              {isGmail && (
+                <div
+                  style={{
+                    background: 'rgba(66, 133, 244, 0.08)',
+                    border: '1px solid rgba(66, 133, 244, 0.25)',
+                    borderRadius: '8px',
+                    padding: '0.5rem 0.75rem',
+                    marginTop: '0.4rem',
+                    fontSize: '0.78rem',
+                    color: '#93c5fd',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <span>💡</span>
+                  <span>
+                    Using Gmail? You can click <strong>Continue with Google</strong> above to skip manual code entry!
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="reg-field">
@@ -364,7 +609,7 @@ export default function Register() {
                 style={{ marginRight: '0.75rem', accentColor: 'var(--accent-green)', width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }}
               />
               <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.5 }}>
-                I agree to the <strong style={{ color: '#fff' }}>NodeVault Protocol Terms</strong>. I understand that submitting a payout bank account and completing KYC identity verification are mandatory before staking on nodes or withdrawing funds.
+                I agree to the <strong style={{ color: '#fff' }}>NodeVault Protocol Terms</strong>. I understand that email ownership verification is mandatory before staking on nodes or withdrawing funds.
               </span>
             </label>
             {errors.agreed && <span className="reg-error" style={{ marginTop: '-0.5rem' }}>{errors.agreed}</span>}
@@ -375,7 +620,7 @@ export default function Register() {
               style={{ marginTop: '1rem', padding: '0.85rem' }}
               disabled={submitting}
             >
-              {submitting ? 'Creating Node Account…' : 'Create Account & Begin Onboarding →'}
+              {submitting ? 'Verifying Credentials…' : 'Create Account & Verify Email →'}
             </button>
 
             <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
