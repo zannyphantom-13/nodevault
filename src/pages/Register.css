@@ -1,0 +1,454 @@
+/* Register.css */
+
+.register-page {
+  min-height: 100vh;
+  padding: 4rem 1rem;
+}
+
+/* ════════ PROGRESS ════════ */
+.reg-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 3rem;
+}
+
+.reg-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  position: relative;
+}
+
+.reg-step-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--border-subtle);
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.reg-step.active .reg-step-dot {
+  border-color: var(--accent-indigo);
+  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+  color: #fff;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+}
+
+.reg-step.done .reg-step-dot {
+  border-color: var(--accent-green);
+  background: rgba(0, 255, 148, 0.15);
+  color: var(--accent-green);
+}
+
+.reg-step-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.reg-step.active .reg-step-label {
+  color: var(--text-primary);
+}
+
+.reg-step-line {
+  width: 60px;
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0 0.5rem;
+}
+
+/* ════════ BODY ════════ */
+.reg-body {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.reg-card {
+  padding: 2.5rem;
+}
+
+.reg-card-title {
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ════════ TIER SELECTION ════════ */
+.reg-tier-group {
+  margin-bottom: 1.75rem;
+}
+
+.reg-group-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.reg-tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reg-tier-btn {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.reg-tier-btn:hover {
+  border-color: var(--tier-color);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.reg-tier-btn.selected {
+  border-color: var(--tier-color);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 1px var(--tier-color), 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.reg-tier-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.reg-tier-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.reg-tier-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.reg-tier-fee {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.reg-tier-arrow {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+/* ════════ ACCOUNT FORM ════════ */
+.reg-selected-tier {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-glass);
+  border: 1px solid;
+  border-radius: var(--radius-md);
+  margin-bottom: 2rem;
+}
+
+.reg-change-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.reg-change-btn:hover {
+  border-color: var(--accent-indigo);
+  color: var(--text-primary);
+}
+
+.reg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.reg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reg-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--accent-indigo);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.input.input-error {
+  border-color: var(--accent-red);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.reg-error {
+  font-size: 0.8rem;
+  color: var(--accent-red);
+}
+
+.btn-full {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ════════ CONFIRM ════════ */
+.reg-confirm-grid {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.reg-confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.reg-confirm-row span {
+  color: var(--text-muted);
+}
+
+.reg-confirm-row strong {
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--text-primary);
+}
+
+.reg-confirm-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0.25rem 0;
+}
+
+.reg-confirm-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: var(--radius-md);
+  line-height: 1.5;
+}
+
+/* Loading state */
+.btn.loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ════════ ITEMIZED RECEIPT ════════ */
+.reg-receipt {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.reg-receipt-title {
+  display: flex;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+.reg-receipt-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.reg-receipt-row:last-of-type {
+  border-bottom: none;
+}
+
+.reg-receipt-row-main {
+  padding-bottom: 0.75rem;
+}
+
+.reg-receipt-row-fee .reg-receipt-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.reg-receipt-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+}
+
+.reg-receipt-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 0.1rem;
+}
+
+.reg-receipt-amount {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.reg-receipt-total {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem !important;
+  border-top: 1px solid var(--border-subtle) !important;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+/* Gateway badge row */
+.reg-receipt-gateway {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.reg-receipt-gateway-badge {
+  background: #00c06020;
+  border: 1px solid #00c06050;
+  color: #00c060;
+  border-radius: 6px;
+  padding: 0.15rem 0.55rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.reg-receipt-gateway-fallback {
+  color: var(--text-muted);
+  font-size: 0.73rem;
+}
+
+/* VAT note */
+.reg-receipt-vat-note {
+  margin-top: 0.85rem;
+  padding: 0.75rem 1rem;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Protection box */
+.reg-protection-box {
+  padding: 1rem 1.25rem;
+  background: rgba(0, 255, 148, 0.04);
+  border: 1px solid;
+  border-radius: var(--radius-md);
+  margin-bottom: 1.25rem;
+}
+
+/* Tax disclaimer */
+.reg-tax-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.reg-tax-disclaimer:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+}
+

@@ -1,0 +1,340 @@
+/* RegionSelect.css */
+.region-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 2rem 1rem;
+  overflow: hidden;
+}
+
+.region-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* Logo */
+.region-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 2rem;
+}
+
+.region-logo-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(99,102,241,0.12);
+  border: 1px solid rgba(99,102,241,0.3);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.region-logo-text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Header */
+.region-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.region-title {
+  font-size: clamp(2rem, 5vw, 3rem);
+  margin-bottom: 0.75rem;
+}
+
+.region-subtitle {
+  color: var(--text-secondary);
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+
+/* Cards layout */
+.region-cards {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+/* Region card */
+.region-card {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-xl);
+  padding: 2.5rem 2rem;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  transition: all 0.3s ease;
+  -webkit-appearance: none;
+  color: var(--text-primary);
+}
+
+.region-card:hover,
+.region-card.hovered {
+  border-color: var(--border-glow);
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: var(--shadow-card), 0 0 60px rgba(0,229,255,0.12);
+}
+
+.region-card.selecting {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+/* Glows */
+.region-card-glow {
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.region-card:hover .region-card-glow { opacity: 0.25; }
+.region-card-glow-ng { background: #00ff94; }
+.region-card-glow-us { background: #00e5ff; }
+
+/* Top row */
+.region-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.region-flag {
+  font-size: 2.8rem;
+  line-height: 1;
+}
+
+/* Card title */
+.region-card-name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.region-card-currency {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.region-card-currency strong {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+/* Highlights */
+.region-card-highlights {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.region-highlight-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.region-highlight-icon {
+  font-size: 1.2rem;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.region-highlight-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.region-highlight-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Tier preview */
+.region-card-tier-preview {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+}
+
+.region-tier-preview-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.region-tier-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.region-tier-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.region-tier-pill:last-child { border-bottom: none; }
+
+.tier-pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.region-tier-pill-more {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* CTA */
+.region-card-cta {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: gap 0.2s ease;
+}
+.region-card:hover .region-card-cta { gap: 0.8rem; }
+
+.region-arrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.region-card:hover .region-arrow { transform: translateX(4px); }
+
+/* Selecting animation */
+.region-selecting-anim {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.region-selecting-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.region-selecting-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  animation: bounceDot 1s infinite;
+}
+.region-selecting-dots span:nth-child(2) { animation-delay: 0.15s; }
+.region-selecting-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes bounceDot {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50%       { transform: translateY(-6px); opacity: 0.5; }
+}
+
+/* OR Divider */
+.region-divider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 1.25rem;
+  flex-shrink: 0;
+}
+
+.region-divider-line {
+  width: 1px;
+  flex: 1;
+  background: var(--border-subtle);
+}
+
+.region-divider-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  padding: 0.5rem 0;
+}
+
+/* Bottom note */
+.region-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  max-width: 600px;
+  line-height: 1.6;
+  padding: 1rem 1.5rem;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.region-note svg { flex-shrink: 0; margin-top: 2px; }
+
+/* ── Responsive ── */
+@media (max-width: 680px) {
+  .region-cards {
+    flex-direction: column;
+  }
+  .region-divider {
+    flex-direction: row;
+    padding: 0.75rem 0;
+  }
+  .region-divider-line {
+    width: auto;
+    height: 1px;
+    flex: 1;
+  }
+  .region-card {
+    border-radius: var(--radius-lg);
+    padding: 1.75rem 1.5rem;
+  }
+}

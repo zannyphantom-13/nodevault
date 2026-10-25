@@ -1,0 +1,23 @@
+/* FreeMining.css */
+.free-mining-page {
+  min-height: 100vh;
+  padding: 4rem 1rem;
+  background: var(--bg-body);
+}
+
+.mining-hero {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto 3rem;
+}
+
+.mining-title {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.mining-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  line-height: 1.6;
+}

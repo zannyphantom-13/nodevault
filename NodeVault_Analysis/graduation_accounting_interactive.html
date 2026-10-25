@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NodeVault - Graduation Accounting</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body {
+            background-color: #0f172a; /* slate-900 */
+            color: #f8fafc; /* slate-50 */
+            font-family: 'Inter', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Tree CSS */
+        .org-tree {
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+            padding: 2rem 0;
+        }
+        .org-tree ul {
+            display: flex;
+            padding-top: 20px;
+            position: relative;
+            transition: all 0.5s;
+        }
+        .org-tree li {
+            float: left;
+            text-align: center;
+            list-style-type: none;
+            position: relative;
+            padding: 20px 5px 0 5px;
+            transition: all 0.5s;
+        }
+        .org-tree li::before, .org-tree li::after{
+            content: '';
+            position: absolute; top: 0; right: 50%;
+            border-top: 2px solid #475569;
+            width: 50%; height: 20px;
+        }
+        .org-tree li::after{
+            right: auto; left: 50%;
+            border-left: 2px solid #475569;
+        }
+        .org-tree li:only-child::after, .org-tree li:only-child::before {
+            display: none;
+        }
+        .org-tree li:only-child{ padding-top: 0;}
+        .org-tree li:first-child::before, .org-tree li:last-child::after{
+            border: 0 none;
+        }
+        .org-tree li:last-child::before{
+            border-right: 2px solid #475569;
+            border-radius: 0 5px 0 0;
+        }
+        .org-tree li:first-child::after{
+            border-radius: 5px 0 0 0;
+        }
+        .org-tree ul ul::before{
+            content: '';
+            position: absolute; top: 0; left: 50%;
+            border-left: 2px solid #475569;
+            width: 0; height: 20px;
+        }
+        .org-node {
+            border: 1px solid #334155;
+            padding: 10px;
+            border-radius: 8px;
+            display: inline-block;
+            background: #1e293b;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            min-width: 140px;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+    <div id="app" class="max-w-7xl mx-auto">
+        
+        <!-- Header -->
+        <div class="mb-8 text-center">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">
+                NodeVault Graduation Engine
+            </h1>
+            <p class="text-slate-400">Interactive Binary Tree Financial Accounting</p>
+        </div>
+
+        <!-- Controls -->
+        <div class="glass-panel rounded-xl p-6 mb-8 flex flex-col md:flex-row gap-6 items-center justify-between shadow-xl">
+            <div class="flex items-center gap-4 w-full md:w-auto">
+                <div class="w-full">
+                    <label class="block text-sm font-medium text-slate-400 mb-1">Region</label>
+                    <select v-model="region" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="NG">🇳🇬 Nigeria (NGN)</option>
+                        <option value="US">🇺🇸 United States (USD)</option>
+                    </select>
+                </div>
+                <div class="w-full">
+                    <label class="block text-sm font-medium text-slate-400 mb-1">Node Tier</label>
+                    <select v-model="selectedTierIndex" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option v-for="(tier, index) in currentTiersList" :key="index" :value="index">
+                            Tier {{ index + 1 }} - {{ tier.name }} ({{ formatMoney(tier.fee) }})
+                        </option>
+                    </select>
+                </div>
+            </div>
+            <div class="text-right w-full md:w-auto bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
+                <p class="text-sm text-slate-400">Entry Fee</p>
+                <p class="text-2xl font-bold text-white">{{ formatMoney(currentTier.fee) }}</p>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="glass-panel rounded-xl p-6 shadow-lg border-t-4 border-blue-500">
+                <p class="text-sm font-medium text-slate-400">Total Revenue (Inflow)</p>
+                <p class="text-3xl font-bold text-white mt-2">{{ formatMoney(totals.revenue) }}</p>
+                <p class="text-xs text-slate-500 mt-1">255 members joined</p>
+            </div>
+            <div class="glass-panel rounded-xl p-6 shadow-lg border-t-4 border-emerald-500">
+                <p class="text-sm font-medium text-slate-400">Gifts Paid (Expense)</p>
+                <p class="text-3xl font-bold text-emerald-400 mt-2">-{{ formatMoney(totals.gifts) }}</p>
+                <p class="text-xs text-slate-500 mt-1">To Levels 0 - 8</p>
+            </div>
+            <div class="glass-panel rounded-xl p-6 shadow-lg border-t-4 border-amber-500">
+                <p class="text-sm font-medium text-slate-400">Refunds Paid (Liability)</p>
+                <p class="text-3xl font-bold text-amber-400 mt-2">-{{ formatMoney(totals.refunds) }}</p>
+                <p class="text-xs text-slate-500 mt-1">Net after 3% tax (Levels 8-9)</p>
+            </div>
+            <div class="glass-panel rounded-xl p-6 shadow-lg border-t-4 border-purple-500">
+                <p class="text-sm font-medium text-slate-400">Net Platform Retained</p>
+                <p class="text-3xl font-bold text-purple-400 mt-2">{{ formatMoney(totals.net) }}</p>
+                <p class="text-xs text-slate-500 mt-1">Margin: {{ ((totals.net / totals.revenue) * 100).toFixed(2) }}%</p>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="glass-panel rounded-xl shadow-xl overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-800/80 text-slate-300 text-sm uppercase tracking-wider">
+                            <th class="p-4 border-b border-slate-700 font-semibold">Tree Level</th>
+                            <th class="p-4 border-b border-slate-700 font-semibold text-right">Members</th>
+                            <th class="p-4 border-b border-slate-700 font-semibold text-right">Revenue In</th>
+                            <th class="p-4 border-b border-slate-700 font-semibold text-right">Gifts Out (Status)</th>
+                            <th class="p-4 border-b border-slate-700 font-semibold text-right">Refunds Out (Net)</th>
+                            <th class="p-4 border-b border-slate-700 font-semibold text-right">Platform Net</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700/50">
+                        <tr v-for="row in rows" :key="row.level" class="hover:bg-slate-800/40 transition-colors">
+                            <td class="p-4">
+                                <div class="font-medium text-white">Level {{ row.level }}</div>
+                                <div class="text-xs text-slate-400">{{ row.role }}</div>
+                            </td>
+                            <td class="p-4 text-right font-medium">{{ row.members.toLocaleString() }}</td>
+                            <td class="p-4 text-right text-blue-300">+{{ formatMoney(row.revenue) }}</td>
+                            <td class="p-4 text-right">
+                                <div class="text-emerald-400">-{{ formatMoney(row.gifts) }}</div>
+                                <div class="text-xs text-slate-400">{{ row.giftPercent * 100 }}% ({{ row.tierRefund }})</div>
+                            </td>
+                            <td class="p-4 text-right">
+                                <div class="text-amber-400">-{{ formatMoney(row.refunds) }}</div>
+                                <div v-if="row.refunds > 0" class="text-xs text-slate-400">{{ (row.refundPercent * 100).toFixed(1) }}% Net</div>
+                            </td>
+                            <td class="p-4 text-right font-bold" :class="row.net >= 0 ? 'text-purple-400' : 'text-red-400'">
+                                {{ row.net >= 0 ? '+' : '' }}{{ formatMoney(row.net) }}
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-slate-900/80 text-white font-bold text-lg">
+                            <td class="p-4">TOTALS</td>
+                            <td class="p-4 text-right">{{ totals.members.toLocaleString() }}</td>
+                            <td class="p-4 text-right text-blue-400">+{{ formatMoney(totals.revenue) }}</td>
+                            <td class="p-4 text-right text-emerald-400">-{{ formatMoney(totals.gifts) }}</td>
+                            <td class="p-4 text-right text-amber-400">-{{ formatMoney(totals.refunds) }}</td>
+                            <td class="p-4 text-right text-purple-400">+{{ formatMoney(totals.net) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- User Journey Section -->
+        <div class="mt-16 mb-8 text-center">
+            <h2 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2">
+                Detailed Family Tree
+            </h2>
+            <p class="text-slate-400">Visual mapping of the accounting flow for a single user up to graduation</p>
+        </div>
+
+        <div class="glass-panel rounded-xl shadow-xl overflow-hidden mb-12 border-t-4 border-purple-500">
+            <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4">
+                <span class="text-sm font-bold text-slate-300">Tree Explorer (255 Nodes)</span>
+                <div class="flex items-center gap-2">
+                    <button @click="zoomOut" class="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full text-white font-bold transition-colors" title="Zoom Out">-</button>
+                    <span class="text-white text-sm font-mono w-12 text-center">{{ Math.round(zoomLevel * 100) }}%</span>
+                    <button @click="zoomIn" class="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full text-white font-bold transition-colors" title="Zoom In">+</button>
+                    <button @click="resetZoom" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-xs font-bold transition-colors ml-2">Reset</button>
+                </div>
+            </div>
+            <div class="org-tree overflow-auto cursor-grab active:cursor-grabbing" style="height: 600px;" @mousedown="startDrag" @mousemove="onDrag" @mouseup="stopDrag" @mouseleave="stopDrag" ref="treeContainer">
+                <ul :style="{ zoom: zoomLevel }">
+                    <tree-node :level="0" :fee="currentTier.fee" :format-money="formatMoney"></tree-node>
+                </ul>
+            </div>
+            <div class="bg-slate-800/80 p-4 border-t border-slate-700 text-sm text-slate-300 flex flex-col md:flex-row justify-around items-center gap-4">
+                <div><span class="text-emerald-400 font-bold">Root Total Earned:</span> 2 Direct (30%) + 4 Indirect (30%) = 60%</div>
+                <div class="bg-purple-900/50 text-purple-200 px-4 py-2 rounded-lg border border-purple-500/50 font-bold tracking-wider text-xs">GRADUATION THRESHOLD MET</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+
+        const tiersNG = [
+            { name: "Micro Node", fee: 1000 },
+            { name: "Spark Node", fee: 2000 },
+            { name: "Alpha Node", fee: 4000 },
+            { name: "Delta Node", fee: 8000 },
+            { name: "Echo Node", fee: 16000 },
+            { name: "Prime Node", fee: 32000 },
+            { name: "Sigma Node", fee: 64000 },
+            { name: "Omega Node", fee: 128000 },
+            { name: "Nexus Node", fee: 250000 },
+            { name: "Apex Node", fee: 400000 },
+            { name: "Zenith Node", fee: 640000 },
+            { name: "Nova Node", fee: 1000000 },
+            { name: "Titan Node", fee: 1500000 },
+            { name: "Sovereign Node", fee: 2000000 },
+            { name: "Genesis Supreme", fee: 2560000 }
+        ];
+
+        const tiersUS = [
+            { name: "Micro Node", fee: 1 },
+            { name: "Spark Node", fee: 2 },
+            { name: "Alpha Node", fee: 4 },
+            { name: "Delta Node", fee: 8 },
+            { name: "Echo Node", fee: 16 },
+            { name: "Prime Node", fee: 32 },
+            { name: "Sigma Node", fee: 64 },
+            { name: "Omega Node", fee: 128 },
+            { name: "Nexus Node", fee: 250 },
+            { name: "Apex Node", fee: 400 },
+            { name: "Zenith Node", fee: 640 },
+            { name: "Nova Node", fee: 1000 },
+            { name: "Titan Node", fee: 1500 },
+            { name: "Sovereign Node", fee: 2000 },
+            { name: "Genesis Supreme", fee: 2560 }
+        ];
+
+        const TreeNode = {
+            template: `
+                <li>
+                    <div class="org-node relative mx-1 my-2" :class="nodeBorderClass">
+                        <div class="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap" :class="badgeClass">{{ badgeText }}</div>
+                        <h3 class="text-white font-bold text-xs mt-1">Level {{ level }}</h3>
+                        <div class="mt-1 text-[9px] space-y-1 text-left bg-slate-800 p-1.5 rounded w-32">
+                            <div class="flex justify-between"><span class="text-slate-400">Fee:</span><span class="text-white">{{ formatMoney(fee) }}</span></div>
+                            <div class="flex justify-between" v-if="level > 0"><span class="text-slate-400">Gift ↑:</span><span class="text-blue-400">15% ({{ formatMoney(fee * 0.15) }})</span></div>
+                            <template v-if="gifts > 0">
+                                <div class="flex justify-between mt-1"><span class="text-slate-400">L1 Fill:</span><span class="text-emerald-400">+{{ formatMoney(fee * 0.30) }}</span></div>
+                            </template>
+                            <template v-if="gifts >= fee * 0.59">
+                                <div class="flex justify-between"><span class="text-slate-400">L2 Fill:</span><span class="text-emerald-400">+{{ formatMoney(fee * 0.30) }}</span></div>
+                            </template>
+                            <template v-if="gifts > 0">
+                                <div class="flex justify-between pt-1 border-t border-slate-700 mt-1"><span class="text-slate-300 font-bold">Total Recv:</span><span class="text-emerald-400 font-bold">{{ formatMoney(gifts) }}</span></div>
+                            </template>
+                            <div class="flex justify-between mt-1" v-if="refund > 0"><span class="text-slate-400">Refund:</span><span class="text-amber-400">{{ formatMoney(refund) }}</span></div>
+                            <div class="flex justify-between mt-1" v-if="gifts === 0 && refund === 0"><span class="text-slate-400">Returns:</span><span class="text-slate-500">None</span></div>
+                        </div>
+                    </div>
+                    <ul v-if="level < 7">
+                        <tree-node :level="level + 1" :fee="fee" :format-money="formatMoney"></tree-node>
+                        <tree-node :level="level + 1" :fee="fee" :format-money="formatMoney"></tree-node>
+                    </ul>
+                </li>
+            `,
+            props: ['level', 'fee', 'formatMoney'],
+            computed: {
+                gifts() {
+                    if (this.level <= 5) return this.fee * 0.60;
+                    if (this.level === 6) return this.fee * 0.30;
+                    return 0;
+                },
+                refund() {
+                    if (this.level === 6) return this.fee * 0.291;
+                    if (this.level === 7) return this.fee * 0.679;
+                    return 0;
+                },
+                badgeText() {
+                    if (this.level <= 5) return "GRADUATES (TIER C)";
+                    if (this.level === 6) return "TIER B REFUND";
+                    return "TIER A REFUND";
+                },
+                badgeClass() {
+                    if (this.level <= 5) return "bg-purple-900 text-purple-300 border-purple-700";
+                    if (this.level === 6) return "bg-blue-900 text-blue-300 border-blue-700";
+                    return "bg-slate-700 text-slate-300 border-slate-600";
+                },
+                nodeBorderClass() {
+                    if (this.level <= 5) return "border-t-4 border-purple-500";
+                    if (this.level === 6) return "border-t-4 border-blue-500";
+                    return "border-t-4 border-slate-500";
+                }
+            }
+        };
+
+        const app = createApp({
+            setup() {
+                const region = ref('NG');
+                const selectedTierIndex = ref(8); // Default Nexus Node
+
+                // Zoom controls
+                const zoomLevel = ref(0.5); // Start zoomed out a bit since the tree is huge
+                const zoomIn = () => zoomLevel.value = Math.min(zoomLevel.value + 0.1, 2);
+                const zoomOut = () => zoomLevel.value = Math.max(zoomLevel.value - 0.1, 0.1);
+                const resetZoom = () => zoomLevel.value = 1;
+
+                // Drag to scroll logic
+                const treeContainer = ref(null);
+                let isDragging = false;
+                let startX, startY, scrollLeft, scrollTop;
+
+                const startDrag = (e) => {
+                    isDragging = true;
+                    startX = e.pageX - treeContainer.value.offsetLeft;
+                    startY = e.pageY - treeContainer.value.offsetTop;
+                    scrollLeft = treeContainer.value.scrollLeft;
+                    scrollTop = treeContainer.value.scrollTop;
+                };
+                const stopDrag = () => {
+                    isDragging = false;
+                };
+                const onDrag = (e) => {
+                    if (!isDragging) return;
+                    e.preventDefault();
+                    const x = e.pageX - treeContainer.value.offsetLeft;
+                    const y = e.pageY - treeContainer.value.offsetTop;
+                    const walkX = (x - startX) * 2;
+                    const walkY = (y - startY) * 2;
+                    treeContainer.value.scrollLeft = scrollLeft - walkX;
+                    treeContainer.value.scrollTop = scrollTop - walkY;
+                };
+
+                const currentTiersList = computed(() => {
+                    return region.value === 'NG' ? tiersNG : tiersUS;
+                });
+
+                const currentTier = computed(() => {
+                    return currentTiersList.value[selectedTierIndex.value];
+                });
+
+                const formatMoney = (amount) => {
+                    return new Intl.NumberFormat(region.value === 'NG' ? 'en-NG' : 'en-US', {
+                        style: 'currency',
+                        currency: region.value === 'NG' ? 'NGN' : 'USD',
+                        minimumFractionDigits: region.value === 'NG' ? 0 : 2
+                    }).format(amount);
+                };
+
+                const calcData = computed(() => {
+                    let result = [];
+                    let totalRevenue = 0;
+                    let totalGifts = 0;
+                    let totalRefunds = 0;
+                    let totalNet = 0;
+                    let totalMembers = 0;
+                    
+                    let F = currentTier.value.fee;
+
+                    for (let i = 0; i <= 7; i++) {
+                        let members = Math.pow(2, i);
+                        let revenue = members * F;
+                        
+                        let giftPercent = 0;
+                        let refundPercent = 0;
+                        let tierRefund = "";
+                        let role = "";
+                        
+                        if (i === 0) {
+                            giftPercent = 0.60;
+                            tierRefund = "Tier C";
+                            role = "Graduating Root";
+                        } else if (i <= 5) {
+                            giftPercent = 0.60;
+                            refundPercent = 0;
+                            tierRefund = "Tier C";
+                            role = "Qualifying Internal";
+                        } else if (i === 6) {
+                            giftPercent = 0.30;
+                            refundPercent = 0.291; 
+                            tierRefund = "Tier B";
+                            role = "Partial Qualifying Leaf";
+                        } else if (i === 7) {
+                            giftPercent = 0;
+                            refundPercent = 0.679; 
+                            tierRefund = "Tier A";
+                            role = "Non-Qualifying Leaf";
+                        }
+                        
+                        let gifts = members * giftPercent * F;
+                        let refunds = members * refundPercent * F;
+                        let net = revenue - gifts - refunds;
+                        
+                        totalMembers += members;
+                        totalRevenue += revenue;
+                        totalGifts += gifts;
+                        totalRefunds += refunds;
+                        totalNet += net;
+                        
+                        result.push({
+                            level: i,
+                            members,
+                            revenue,
+                            gifts,
+                            refunds,
+                            net,
+                            giftPercent,
+                            refundPercent,
+                            tierRefund,
+                            role
+                        });
+                    }
+                    
+                    return { 
+                        rows: result, 
+                        totals: { members: totalMembers, revenue: totalRevenue, gifts: totalGifts, refunds: totalRefunds, net: totalNet } 
+                    };
+                });
+
+                return {
+                    region,
+                    selectedTierIndex,
+                    currentTiersList,
+                    currentTier,
+                    formatMoney,
+                    rows: computed(() => calcData.value.rows),
+                    totals: computed(() => calcData.value.totals),
+                    zoomLevel,
+                    zoomIn,
+                    zoomOut,
+                    resetZoom,
+                    treeContainer,
+                    startDrag,
+                    stopDrag,
+                    onDrag
+                }
+            }
+        });
+        
+        app.component('tree-node', TreeNode);
+        app.mount('#app');
+    </script>
+</body>
+</html>

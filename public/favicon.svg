@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="coinClip"><circle cx="256" cy="256" r="248"/></clipPath>
+
+    <!-- page palette: card #111827, indigo #6366F1, cyan #00E5FF, green #00FF94 -->
+    <radialGradient id="bg" cx="0.35" cy="0.3" r="0.95">
+      <stop offset="0" stop-color="#1A2342"/>
+      <stop offset="0.55" stop-color="#111827"/>
+      <stop offset="1" stop-color="#0A0E1A"/>
+    </radialGradient>
+
+    <linearGradient id="rim" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#00E5FF" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#6366F1" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#00E5FF" stop-opacity="0.5"/>
+    </linearGradient>
+
+    <linearGradient id="glassA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366F1" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#00E5FF" stop-opacity="0.12"/>
+    </linearGradient>
+    <linearGradient id="glassB" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00E5FF" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#6366F1" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="glassC" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#6366F1" stop-opacity="0.06"/>
+    </linearGradient>
+
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00E5FF"/>
+      <stop offset="0.5" stop-color="#A5B4FC"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+
+    <radialGradient id="node" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.5" stop-color="#67F0FF"/>
+      <stop offset="1" stop-color="#00B8D4"/>
+    </radialGradient>
+
+    <radialGradient id="shine" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#6366F1" flood-opacity="0.35"/>
+    </filter>
+    <filter id="coinGlow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="0" stdDeviation="14" flood-color="#6366F1" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- coin base -->
+  <circle cx="256" cy="256" r="248" fill="url(#bg)" filter="url(#coinGlow)"/>
+
+  <!-- rim: solid line + dashed indigo ring (matches the page's orbit ring) -->
+  <circle cx="256" cy="256" r="246" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#6366F1" stroke-opacity="0.35" stroke-width="2" stroke-dasharray="4 8"/>
+
+  <g transform="translate(256 256) scale(0.82) translate(-256 -256)">
+
+    <!-- branches -->
+    <g stroke="#6366F1" stroke-opacity="0.9" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#soft)">
+      <polyline points="230,92 225.6,64.3"/>
+      <polyline points="237.3,30.3 225.6,64.3 203.9,35.5"/>
+      <polyline points="400,150 422.6,133.4"/>
+      <polyline points="458.2,128.2 422.6,133.4 438.2,100.9"/>
+      <polyline points="384,330 408.2,344"/>
+      <polyline points="427.3,374.5 408.2,344 444.2,345.3"/>
+      <polyline points="270,426 272.3,453.9"/>
+      <polyline points="258.1,486.9 272.3,453.9 291.7,484.2"/>
+      <polyline points="136,344 113.4,360.6"/>
+      <polyline points="77.8,365.8 113.4,360.6 97.8,393"/>
+      <polyline points="112,176 87.5,162.4"/>
+      <polyline points="67.9,132.2 87.5,162.4 51.5,161.7"/>
+    </g>
+
+    <!-- glass facets -->
+    <g stroke="#A5B4FC" stroke-opacity="0.55" stroke-width="2.5" stroke-linejoin="round" filter="url(#drop)">
+      <polygon points="230,92 400,150 262,262" fill="url(#glassA)"/>
+      <polygon points="400,150 384,330 262,262" fill="url(#glassC)"/>
+      <polygon points="384,330 270,426 262,262" fill="url(#glassB)"/>
+      <polygon points="270,426 136,344 262,262" fill="url(#glassA)"/>
+      <polygon points="136,344 112,176 262,262" fill="url(#glassC)"/>
+      <polygon points="112,176 230,92 262,262" fill="url(#glassB)"/>
+    </g>
+
+    <!-- outline -->
+    <polygon points="230,92 400,150 384,330 270,426 136,344 112,176" fill="none" stroke="url(#edge)" stroke-width="6" stroke-linejoin="round" filter="url(#soft)"/>
+
+    <!-- corner nodes -->
+    <g fill="url(#node)" stroke="#E0FCFF" stroke-opacity="0.9" stroke-width="3" filter="url(#drop)">
+      <circle cx="230" cy="92" r="14"/>
+      <circle cx="400" cy="150" r="14"/>
+      <circle cx="384" cy="330" r="14"/>
+      <circle cx="270" cy="426" r="14"/>
+      <circle cx="136" cy="344" r="14"/>
+      <circle cx="112" cy="176" r="14"/>
+    </g>
+
+    <!-- vault door -->
+    <circle cx="262" cy="262" r="58" fill="#0A0E1A" fill-opacity="0.75" stroke="url(#edge)" stroke-width="7" filter="url(#drop)"/>
+    <circle cx="262" cy="262" r="58" fill="url(#glassA)"/>
+    <circle cx="262" cy="262" r="40" fill="none" stroke="#00FF94" stroke-opacity="0.8" stroke-width="3" stroke-dasharray="5 7"/>
+
+    <!-- keyhole -->
+    <g fill="#E0FCFF">
+      <circle cx="262" cy="254" r="12"/>
+      <polygon points="255,260 269,260 274,288 250,288"/>
+    </g>
+  </g>
+
+  <!-- soft highlight -->
+  <g clip-path="url(#coinClip)">
+    <ellipse cx="170" cy="110" rx="150" ry="70" fill="url(#shine)" transform="rotate(-30 170 110)"/>
+  </g>
+</svg>
