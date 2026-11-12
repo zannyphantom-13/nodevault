@@ -37,7 +37,7 @@ function IconReceipt() {
 
 function IconCalendar() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-amber)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
       <line x1="16" y1="2" x2="16" y2="6" />
       <line x1="8" y1="2" x2="8" y2="6" />
@@ -85,10 +85,9 @@ export default function Tiers() {
   const navigate = useNavigate();
   const [hoveredTier, setHoveredTier] = useState(null);
   const [filter, setFilter] = useState('small');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Derive per-tier staking state from user profile
-  // stakedTierIds = tiers the user currently has an ACTIVE node in (cannot re-stake until graduated)
-  // graduatedTierIds = tiers the user has completed a full cycle in (can re-stake, history preserved)
   const stakedTierIds   = Array.isArray(user?.stakedTierIds)   ? user.stakedTierIds   : [];
   const graduatedTierIds = Array.isArray(user?.graduatedTierIds) ? user.graduatedTierIds : [];
 
@@ -110,22 +109,26 @@ export default function Tiers() {
     }
   }, [user, dbBank]);
 
-  const fmt = region?.code === 'US'
-    ? (n) => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : formatNaira;
-
-  const fmtCompact = region?.code === 'US'
-    ? (n) => n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n}`
-    : formatNairaCompact;
+  const fmt = formatNaira;
+  const fmtCompact = formatNairaCompact;
 
   const categories = [
-    { key: 'small',   label: 'Entry Level', code: 'T01–T05' },
-    { key: 'mid',     label: 'Core Validators', code: 'T06–T08' },
-    { key: 'premium', label: 'High-Yield Pools', code: 'T09–T12' },
-    { key: 'elite',   label: 'Elite Infrastructure', code: 'T13–T15' },
+    { key: 'small',   label: '🔥 Entry Nodes',     code: 'T01–T05' },
+    { key: 'mid',     label: '⚡ Core Validators', code: 'T06–T08' },
+    { key: 'premium', label: '💎 High-Yield',      code: 'T09–T12' },
+    { key: 'elite',   label: '👑 Genesis Cap',     code: 'T13–T15' },
+    { key: 'all',     label: 'All Nodes',          code: '15 Tiers' },
   ];
 
-  const filtered = tierData.filter(t => t.category === filter);
+  const filtered = tierData.filter(t => {
+    const matchesCategory = filter === 'all' ? true : t.category === filter;
+    const matchesSearch   = searchQuery.trim() === ''
+      ? true
+      : t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(t.fee).includes(searchQuery);
+    return matchesCategory && matchesSearch;
+  });
 
   // ══════════════════════════════════════════════════════
   // STAKING GATEKEEPER CHECK
@@ -235,205 +238,253 @@ export default function Tiers() {
       {/* Header */}
       <section className="tiers-hero">
         <div className="container">
-          <p className="section-label">Genesis Node Marketplace</p>
+          <div className="badge badge-cyan" style={{ marginBottom: '1rem' }}>
+            <span className="pulse-dot" style={{ background: 'var(--accent-cyan)' }} />
+            GENESIS NODE LAUNCHPAD · 15 PROTOCOL TIERS
+          </div>
           <h1 className="tiers-hero-title">
-            Choose Your <span className="gradient-text">Node Tier</span>
+            Explore & Stake <span className="gradient-text-cyan">Validator</span> <span className="gradient-text">Nodes</span>
           </h1>
           <p className="tiers-hero-desc">
-            15 institutional validator node tiers — currently open for Entry Level pools (Tiers 1–5).
-            Core, High-Yield, and Elite pools unlock progressively. Capital protection up to 70% guaranteed.
+            Stake into high-yield bare-metal validator pools. Earn <strong>12.0% Sovereign APY</strong> backed 
+            by sovereign Treasury Bill reserves, with an automated <strong>70% Capital Guarantee Floor</strong>.
           </p>
 
-          {/* Launch phase notice */}
-          <div className="tiers-launch-notice">
-            <span className="pulse-dot" style={{ background: '#00FF94' }} />
-            <strong style={{ color: '#00FF94' }}>Launch Phase Active:</strong>
-            <span style={{ color: 'var(--text-secondary)', marginLeft: '0.4rem' }}>
-              Entry Level Nodes (Tiers 1–5) are live. Account creation, Bank linking & KYC verification required before staking.
-            </span>
+          {/* Search & Discovery Bar (only.meme launchpad style) */}
+          <div className="tiers-search-wrap">
+            <div className="tiers-search-input-box">
+              <span className="tiers-search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder="Search node name, ticker (e.g. $MICRO), or fee..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="tiers-search-input"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="tiers-search-clear"
+                  onClick={() => setSearchQuery('')}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Filter Tabs */}
           <div className="tiers-filter">
-            {categories.map(cat => (
-              <button
-                key={cat.key}
-                className={`tiers-filter-btn ${filter === cat.key ? 'active' : ''}`}
-                onClick={() => setFilter(cat.key)}
-              >
-                <span>{cat.label}</span>
-                <span className="tiers-filter-code" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', opacity: 0.65, marginLeft: '0.4rem' }}>
-                  ({cat.code})
-                </span>
-                {cat.key !== 'small' && (
-                  <span className="tiers-filter-lock" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '0.4rem' }}>
-                    <IconLock size={12} />
-                  </span>
-                )}
-              </button>
-            ))}
+            {categories.map(cat => {
+              const count = cat.key === 'all'
+                ? tierData.length
+                : tierData.filter(t => t.category === cat.key).length;
+              return (
+                <button
+                  key={cat.key}
+                  className={`tiers-filter-btn ${filter === cat.key ? 'active' : ''}`}
+                  onClick={() => setFilter(cat.key)}
+                >
+                  <span>{cat.label}</span>
+                  <span className="tiers-filter-count">{count}</span>
+                  {cat.key !== 'small' && cat.key !== 'all' && (
+                    <span className="tiers-filter-lock">
+                      <IconLock size={11} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* Tier Grid */}
-      <section className="section">
+      <section className="section" style={{ paddingTop: '1.5rem' }}>
         <div className="container">
           {/* Locked category banner */}
-          {filter !== 'small' && (
+          {filter !== 'small' && filter !== 'all' && (
             <div className="tiers-locked-banner">
               <div className="tiers-locked-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <IconLock size={26} />
               </div>
               <div>
                 <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem' }}>
-                  {categories.find(c => c.key === filter)?.label} Tiers — Launching Soon
+                  {categories.find(c => c.key === filter)?.label} — Progressive Activation
                 </h3>
                 <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                  These tiers unlock as Entry Level pools complete their first matrix cycle.
+                  These institutional pools unlock progressively as Starter Nodes achieve protocol matrix completion.
                 </p>
-                <button className="btn btn-secondary" style={{ marginTop: '1rem', fontSize: '0.85rem' }}
+                <button className="btn btn-secondary" style={{ marginTop: '0.85rem', fontSize: '0.85rem' }}
                   onClick={() => setFilter('small')}>
-                  ← View Live Entry Level Nodes
+                  ← View Live Starter Nodes
                 </button>
               </div>
             </div>
           )}
 
-          <div className="tiers-grid">
-            {filtered.map(tier => {
-              const isHovered     = hoveredTier === tier.id;
-              const isSingle      = tier.singleGroup;
-              const available     = isTierAvailable(tier.id);
-              const isActiveStake = available && stakedTierIds.includes(tier.id);
-              const isGraduated   = available && graduatedTierIds.includes(tier.id) && !stakedTierIds.includes(tier.id);
+          {filtered.length === 0 ? (
+            <div className="card text-center" style={{ padding: '3rem 1rem' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔍</div>
+              <h3>No matching validator nodes</h3>
+              <p style={{ color: 'var(--text-muted)' }}>Try adjusting your search query or category filter.</p>
+              <button className="btn btn-secondary btn-sm" style={{ marginTop: '1rem' }} onClick={() => { setSearchQuery(''); setFilter('all'); }}>
+                Reset Filters
+              </button>
+            </div>
+          ) : (
+            <div className="tiers-grid">
+              {filtered.map(tier => {
+                const isHovered     = hoveredTier === tier.id;
+                const isSingle      = tier.singleGroup;
+                const available     = isTierAvailable(tier.id);
+                const isActiveStake = available && stakedTierIds.includes(tier.id);
+                const isGraduated   = available && graduatedTierIds.includes(tier.id) && !stakedTierIds.includes(tier.id);
+                const fillPercent   = available ? Math.min(95, 65 + tier.id * 5) : 0;
 
-              return (
-                <div
-                  key={tier.id}
-                  className={`tier-card card ${isHovered ? 'hovered' : ''} ${!available ? 'tier-card-locked' : ''} ${isActiveStake ? 'tier-card-active' : ''}`}
-                  onMouseEnter={() => setHoveredTier(tier.id)}
-                  onMouseLeave={() => setHoveredTier(null)}
-                  style={{
-                    '--card-glow': tier.color,
-                    borderColor: isActiveStake
-                      ? `${tier.color}80`
-                      : !available
-                        ? 'rgba(255,255,255,0.08)'
-                        : undefined,
-                  }}
-                >
-                  {/* Lock overlay for tiers 6–15 */}
-                  {!available && (
-                    <div className="tier-lock-overlay">
-                      <div className="tier-lock-badge">
-                        <IconLock size={14} />
-                        <span>Locked for Launch</span>
+                return (
+                  <div
+                    key={tier.id}
+                    className={`tier-card card ${isHovered ? 'hovered' : ''} ${!available ? 'tier-card-locked' : ''} ${isActiveStake ? 'tier-card-active' : ''}`}
+                    onMouseEnter={() => setHoveredTier(tier.id)}
+                    onMouseLeave={() => setHoveredTier(null)}
+                    style={{
+                      '--card-glow': tier.color,
+                      borderColor: isActiveStake
+                        ? `${tier.color}90`
+                        : isHovered
+                          ? 'rgba(0, 229, 255, 0.45)'
+                          : undefined,
+                    }}
+                  >
+                    {/* Lock overlay for tiers 6–15 */}
+                    {!available && (
+                      <div className="tier-lock-overlay">
+                        <div className="tier-lock-badge">
+                          <IconLock size={14} />
+                          <span>Locked for Launch</span>
+                        </div>
+                        <p className="tier-lock-subtext">Progressive protocol activation</p>
                       </div>
-                      <p className="tier-lock-subtext">Progressive protocol activation</p>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Active Node Overlay Banner */}
-                  {isActiveStake && (
-                    <div style={{
-                      position: 'absolute', top: 0, left: 0, right: 0,
-                      background: `linear-gradient(135deg, ${tier.color}18, transparent)`,
-                      borderRadius: '16px 16px 0 0',
-                      padding: '0.5rem 1rem',
-                      display: 'flex', alignItems: 'center', gap: '0.5rem',
-                      borderBottom: `1px solid ${tier.color}30`,
-                    }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: tier.color, boxShadow: `0 0 6px ${tier.color}`, flexShrink: 0, animation: 'pulseOpacity 1.5s infinite' }} />
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: tier.color, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Active Node — In Cycle</span>
-                    </div>
-                  )}
+                    {/* Active Node Ribbon */}
+                    {isActiveStake && (
+                      <div className="tier-active-ribbon" style={{ background: `linear-gradient(90deg, ${tier.color}35, transparent)`, borderBottom: `1px solid ${tier.color}50` }}>
+                        <span className="pulse-dot" style={{ background: tier.color, boxShadow: `0 0 8px ${tier.color}` }} />
+                        <span style={{ color: tier.color, fontWeight: 700, fontSize: '0.72rem' }}>
+                          Active Node — In Cycle
+                        </span>
+                      </div>
+                    )}
 
-                  {/* Card Header */}
-                  <div className="tier-card-header" style={isActiveStake ? { marginTop: '1.75rem' } : {}}>
-                    <div className="tier-card-badges">
-                      <span className="badge" style={{ background: `${tier.color}20`, color: available ? tier.color : '#888', borderColor: `${tier.color}40` }}>
-                        {tier.label}
+                    {/* Card Top: Avatar, Ticker & Rank */}
+                    <div className="tier-card-header" style={isActiveStake ? { marginTop: '1.8rem' } : {}}>
+                      <div className="tier-avatar-group">
+                        <div className="tier-avatar-chip" style={{ background: `${tier.color}20`, borderColor: `${tier.color}45`, color: tier.color }}>
+                          {tier.id <= 5 ? '⚡' : tier.id <= 8 ? '🔥' : '💎'}
+                        </div>
+                        <div>
+                          <div className="tier-ticker-symbol" style={{ color: 'var(--accent-cyan)' }}>
+                            $NVT-{tier.name.split(' ')[0].toUpperCase()}
+                          </div>
+                          <div className="tier-card-name">{tier.name}</div>
+                        </div>
+                      </div>
+
+                      <div className="tier-card-badges">
+                        <span className="badge" style={{ background: `${tier.color}20`, color: available ? tier.color : '#888', borderColor: `${tier.color}40` }}>
+                          {tier.label}
+                        </span>
+                        {isSingle && <span className="badge badge-cyan">Single Pool</span>}
+                        {tier.category === 'elite' && <span className="badge badge-cyan">Cap Tier</span>}
+                        {isGraduated && <span className="badge badge-green">🎓 Graduate</span>}
+                      </div>
+                    </div>
+
+                    {/* Bonding / Pool Fill Progress */}
+                    <div className="tier-bonding-box">
+                      <div className="tier-bonding-header">
+                        <span>Pool Capacity</span>
+                        <strong style={{ color: available ? 'var(--accent-cyan)' : '#888' }}>
+                          {available ? `${fillPercent}% Filled` : '0% (Locked)'}
+                        </strong>
+                      </div>
+                      <div className="tier-bonding-track">
+                        <div
+                          className="tier-bonding-fill"
+                          style={{
+                            width: `${fillPercent}%`,
+                            background: available ? 'linear-gradient(90deg, var(--accent-indigo), var(--accent-cyan), var(--accent-green))' : '#334155'
+                          }}
+                        />
+                      </div>
+                      <div className="tier-bonding-sub">
+                        <span>{isSingle ? '1 Global Pool' : `${tier.maxPools} Parallel Pools`}</span>
+                        <span>{available ? 'Live Validation' : 'Standby'}</span>
+                      </div>
+                    </div>
+
+                    {/* Fee Display */}
+                    <div className="tier-fee-display">
+                      <span className="tier-fee-label">Staking Entry</span>
+                      <span className="tier-card-fee" style={{ color: available ? tier.color : '#666' }}>
+                        {fmt(tier.fee)}
                       </span>
-                      {isSingle && <span className="badge badge-cyan">Single Pool</span>}
-                      {tier.category === 'elite' && <span className="badge badge-amber">Cap Tier</span>}
-                      {!available && <span className="badge" style={{ background: '#ffffff10', color: '#aaa', borderColor: '#ffffff20', fontSize: '0.65rem' }}>LOCKED</span>}
-                      {isGraduated && <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>🎓 Graduate</span>}
                     </div>
-                    <div className="tier-card-pools">
-                      <span className="tier-pool-count">{isSingle ? '1' : tier.maxPools}</span>
-                      <span className="tier-pool-label">{isSingle ? 'Global Pool' : 'Pools'}</span>
+
+                    {/* 2x2 Metric Grid */}
+                    <div className="tier-card-stats">
+                      <div className="tier-stat">
+                        <span className="tier-stat-label">Sovereign APY</span>
+                        <span className="tier-stat-value" style={{ color: available ? 'var(--accent-green)' : '#666' }}>
+                          12.0%
+                        </span>
+                      </div>
+                      <div className="tier-stat">
+                        <span className="tier-stat-label">Max Refund (Floor)</span>
+                        <span className="tier-stat-value">{fmt(tier.maxRefundTierA)}</span>
+                      </div>
+                      <div className="tier-stat">
+                        <span className="tier-stat-label">Capital Protection</span>
+                        <span className="tier-stat-value">70% (Tier A)</span>
+                      </div>
+                      <div className="tier-stat">
+                        <span className="tier-stat-label">Referral Reserve</span>
+                        <span className="tier-stat-value" style={{ color: available ? 'var(--accent-cyan)' : '#666' }}>
+                          30%
+                        </span>
+                      </div>
                     </div>
+
+                    {/* CTA Button */}
+                    {isActiveStake ? (
+                      <button
+                        className="btn btn-secondary tier-card-cta"
+                        disabled
+                        style={{ opacity: 0.75, cursor: 'not-allowed', borderColor: `${tier.color}50`, color: tier.color }}
+                      >
+                        ✓ Active Node — Cycle Running
+                      </button>
+                    ) : (
+                      <button
+                        className={`btn ${available ? 'btn-primary' : 'btn-secondary'} tier-card-cta`}
+                        onClick={() => handleSelect(tier)}
+                        disabled={!available}
+                        style={!available ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
+                      >
+                        {!available
+                          ? 'Locked'
+                          : isGraduated
+                            ? `🎓 Re-Stake ${fmt(tier.fee)} ⚡`
+                            : `Stake ${fmt(tier.fee)} ⚡`}
+                      </button>
+                    )}
                   </div>
-
-                  {/* Name & Fee */}
-                  <div className="tier-card-name">{tier.name}</div>
-                  <div className="tier-card-fee" style={{ color: available ? tier.color : '#666' }}>
-                    {fmt(tier.fee)}
-                  </div>
-
-                  {/* Stats */}
-                  <div className="tier-card-stats">
-                    <div className="tier-stat">
-                      <span className="tier-stat-label">Max Refund (Tier A)</span>
-                      <span className="tier-stat-value">{fmt(tier.maxRefundTierA)}</span>
-                    </div>
-                    <div className="tier-stat">
-                      <span className="tier-stat-label">APY Est.</span>
-                      <span className="tier-stat-value" style={{ color: available ? 'var(--accent-green)' : '#666' }}>
-                        {(14 + tier.id * 0.3).toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="tier-stat">
-                      <span className="tier-stat-label">Protection Cap</span>
-                      <span className="tier-stat-value">70% / 60%</span>
-                    </div>
-                    <div className="tier-stat">
-                      <span className="tier-stat-label">Min. Settlement</span>
-                      <span className="tier-stat-value">{region?.code === 'US' ? '$10' : '₦2,000'}</span>
-                    </div>
-                  </div>
-
-                  {/* Bidding notice */}
-                  {!isSingle && available && (
-                    <div className="tier-bidding-note">
-                      <span className="pulse-dot" />
-                      Competitive validation — Top {Math.min(20, tier.maxPools)} pools featured
-                    </div>
-                  )}
-                  {isSingle && available && (
-                    <div className="tier-bidding-note single">
-                      Auto-allocation to global genesis pool
-                    </div>
-                  )}
-
-                  {/* CTA */}
-                  {isActiveStake ? (
-                    <button
-                      className="btn btn-secondary tier-card-cta"
-                      disabled
-                      style={{ opacity: 0.7, cursor: 'not-allowed', borderColor: `${tier.color}50`, color: tier.color }}
-                    >
-                      ✓ Active Node — Cycle Running
-                    </button>
-                  ) : (
-                    <button
-                      className={`btn ${available ? 'btn-primary' : 'btn-secondary'} tier-card-cta`}
-                      onClick={() => handleSelect(tier)}
-                      disabled={!available}
-                      style={!available ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
-                    >
-                      {!available
-                        ? 'Locked'
-                        : isGraduated
-                          ? `🎓 Re-Stake ${fmt(tier.fee)} →`
-                          : `Stake ${fmt(tier.fee)} →`}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* 3-Column Note Grid */}
           <div className="tiers-note-grid" style={{ marginTop: '3.5rem' }}>
@@ -605,6 +656,12 @@ export default function Tiers() {
                   <span>Staking Principal</span>
                   <strong style={{ color: checkoutTier.color }}>{fmt(checkoutTier.fee)}</strong>
                 </div>
+                {checkoutCalc.referralReserve > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', fontSize: '0.82rem', color: 'var(--accent-cyan)' }}>
+                    <span>30% Network Referral Reserve</span>
+                    <span>{fmt(checkoutCalc.referralReserve)}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', fontSize: '0.82rem', color: '#94a3b8' }}>
                   <span>5% Platform OPEX</span>
                   <span>{fmt(checkoutCalc.opexFee)}</span>
@@ -723,8 +780,8 @@ export default function Tiers() {
                   type="button"
                   style={{
                     width: '100%',
-                    background: selectedGateway === 'bank_transfer' ? 'rgba(250, 204, 21, 0.12)' : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${selectedGateway === 'bank_transfer' ? '#facc15' : 'rgba(255,255,255,0.1)'}`,
+                    background: selectedGateway === 'bank_transfer' ? 'rgba(0, 229, 255, 0.12)' : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${selectedGateway === 'bank_transfer' ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.1)'}`,
                     borderRadius: '8px',
                     padding: '0.65rem 0.85rem',
                     color: selectedGateway === 'bank_transfer' ? '#fff' : '#94a3b8',

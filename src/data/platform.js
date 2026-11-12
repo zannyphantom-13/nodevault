@@ -52,12 +52,15 @@ const FEES_US = [1, 2, 4, 8, 16, 32, 64, 128,
                  250, 400, 640, 1000, 1500, 2000, 2560];
 
 // ── Build tier array for a region ──
+// protocolMargin reflects the true platform-retained net (22.84% of pool inflow)
+// lockedCapital (40%) = capital never returned regardless of refund tier
 function buildTiers(fees) {
   return TIER_DEFS.map((def, i) => ({
     ...def,
-    fee:           fees[i],
+    fee:            fees[i],
     maxRefundTierA: parseFloat((fees[i] * 0.70).toFixed(2)),
-    protocolMargin: parseFloat((fees[i] * 0.40).toFixed(2)),
+    protocolMargin: parseFloat((fees[i] * 0.2284).toFixed(2)), // true net retained per 255-node pool
+    lockedCapital:  parseFloat((fees[i] * 0.40).toFixed(2)),   // non-refundable capital (display-only)
     maxPools:       getMaxPools(def.id),
     singleGroup:    def.id >= 6,   // Tiers 6–15 are single pool
   }));
@@ -88,7 +91,7 @@ export const REGIONS = {
       totalStaked:      4820000000,
       yieldDistributed: 963000000,
       graduates:        342,
-      avgApy:           17.3,
+      avgApy:           12.0,
     },
   },
   US: {
@@ -107,7 +110,7 @@ export const REGIONS = {
       totalStaked:      2840000,
       yieldDistributed: 412000,
       graduates:        118,
-      avgApy:           17.5,
+      avgApy:           12.0,
     },
   },
 };
@@ -123,19 +126,42 @@ export const TIER_CATEGORIES = {
 // ══════════════════════════════════════════════════════
 // ── PROTOCOL CONSTANTS (shared, currency-agnostic) ──
 // ══════════════════════════════════════════════════════
-export const OUTBOUND_FEE_RATE     = 0.22; // 15% Tax Reserve + 7% OPEX
-export const OUTBOUND_OPEX         = 0.07; // 7% Platform OPEX
-export const OUTBOUND_TAX_RESERVE  = 0.15; // 15% Statutory Tax Reserve
+
+// ── Outbound (withdrawal / payout) fee architecture ──
+export const OUTBOUND_OPEX         = 0.03;  // 3% Platform OPEX on outbound payouts
+export const OUTBOUND_FEE_RATE     = 0.03;  // Total outbound deduction = OPEX only (tax reserve removed)
+
+// ── Refund constants ──
 export const REFUND_PROTECTION_RATE= 0.60;
 export const REFUND_LOCK_MONTHS    = 6;
-export const REFUND_TAX_RATE       = 0.03; // Only 3% tax for refunds
+export const REFUND_TAX_RATE       = 0.03;  // 3% processing fee on refund disbursements
 export const TIER_A_REFUND_RATE    = 0.70;
-export const TIER_A_EARLY_PENALTY  = 0.10; // 10% early exit penalty
-export const GRADUATE_PENALTY_RATE = 0.50;
-export const INSTITUTIONAL_YIELD_RATE = 0.175;
-export const NTB_YIELD_RATE        = INSTITUTIONAL_YIELD_RATE;
-export const MAX_POOLS_PER_TIER    = 20;  // max pools for entry tiers (Tier 1)
-export const TOP_BID_SLOTS         = 10;  // top bid slots (half of max pool count)
+export const TIER_A_EARLY_PENALTY  = 0.10;  // 10% early exit penalty
+
+// ── Institutional yield (internal treasury rate) ──
+export const INSTITUTIONAL_YIELD_RATE = 0.12;  // 12% — internal yield rate
+export const NTB_YIELD_RATE           = INSTITUTIONAL_YIELD_RATE;
+
+// ── Pool governance ──
+export const MAX_POOLS_PER_TIER    = 20;   // max pools for entry tiers (Tier 1)
+export const TOP_BID_SLOTS         = 10;   // top bid slots (half of max pool count)
+
+// ── Referral Network Engine (OR logic — one rate per relationship type) ──
+// 30% of investment is included as a Referral Programme Reserve on every deposit.
+// This pool funds the below referral payouts — it is NOT a user bonus.
+export const REFERRAL_POOL_DEPOSIT_RATE    = 0.30;   // 30% included in deposit → referral reserve pool
+export const REFERRAL_ONETIME_RATE         = 0.15;   // OR: 15% one-time bonus to referrer on staking
+export const REFERRAL_MAINLINE_RATE        = 0.01;   // OR: 1% per annum — direct mainline position
+export const REFERRAL_DOWNLINE_RATE        = 0.001;  // OR: 0.1% per annum — binary downline per level
+export const REFERRAL_DOWNLINE_MAX_LEVELS  = 7;      // Max binary tree depth
+
+// ── Profit distribution (internal accounting only — not user-facing) ──
+const INVESTOR_PROFIT_SHARE = 0.60; // 60% of net profit → investor distribution
+const FOUNDER_PROFIT_SHARE  = 0.40; // 40% of net profit → founder
+const _RISK_RESERVE_RATE    = 0.03; // Internal risk buffer — not stated to users
+
+// ── Pool sellout completion bonus ──
+export const POOL_COMPLETION_BONUS_RATE = 0.60; // 60% of net OPEX on pool completion
 
 // ══════════════════════════════════════════════════════
 // ── TIER AVAILABILITY — Entry-level only (Tiers 1–5) ──
@@ -269,7 +295,7 @@ export const ENTERPRISE_SERVERS = {
     cycleDurationSeconds: 0.01,
     hashrateThs: 10.0,
     badgeColor: '#00e5ff',
-    description: 'Autonomous protocol dividend server. 13% monthly protocol dividend payout.',
+    description: 'Protocol Graduate — Autonomous master validator. Elite status upon matrix completion.',
   }
 };
 
@@ -320,7 +346,7 @@ export function getServerSpecs(tierId, isGraduate = false) {
 
 /**
  * Returns the monetary value of 1 fuel unit for a given tier.
- * = tier.fee × 17.5% annual yield / 12 months (monthly gift award)
+ * = tier.fee × 12% institutional yield / 12 months (monthly gift award)
  * This is tier-specific, so each blade's fuel unit is different.
  * @param {object} tier - A tier object with at least { fee, id }
  * @param {string} regionCode - 'NG' or 'US'
@@ -401,14 +427,16 @@ export const MIN_WITHDRAWAL_US = 10;     // smallest category minimum (USD)
 
 // ══════════════════════════════════════════════════════
 // ── CHECKOUT FEE ARCHITECTURE (Paystack Primary) ──
-//   Platform OPEX Fee:          5.0% of base fee
-//   Gateway Pass-Through:       3.0% of base fee (markup)
-//   VAT:                        7.5% of (OPEX + Gateway) only
-//   EMTL Levy:                  ₦50 flat on txns ≥ ₦10,000
-//   Actual Paystack Cost:       1.5% capped at ₦2,000
-//   Actual Monnify Fallback:    1.2% capped at ₦1,000
+//   Platform OPEX Fee (Inbound):  5.0% of base fee
+//   Network Referral Reserve:    30.0% of base fee (funds referral pool)
+//   Gateway Pass-Through:         3.0% of base fee (markup)
+//   VAT:                          7.5% of (OPEX + Gateway) only
+//   EMTL Levy:                   ₦50 flat on txns ≥ ₦10,000
+//   Actual Paystack Cost:         1.5% capped at ₦2,000
+//   Actual Monnify Fallback:      1.2% capped at ₦1,000
 // ══════════════════════════════════════════════════════
-export const CHECKOUT_OPEX_RATE    = 0.05;   // 5% platform operating fee
+export const CHECKOUT_OPEX_RATE    = 0.05;   // 5% platform operating fee (inbound)
+export const CHECKOUT_REFERRAL_RESERVE_RATE = 0.30; // 30% referral programme reserve (inbound deposit inclusion)
 export const CHECKOUT_GATEWAY_RATE = 0.03;   // 3% pass-through markup to user
 export const CHECKOUT_VAT_RATE     = 0.075;  // 7.5% VAT on service fees only
 export const CHECKOUT_EMTL_NG      = 50;     // ₦50 flat levy ≥ ₦10,000 (NGN only)
@@ -439,35 +467,41 @@ export const EARLY_EXIT_PENALTY_RATE = 0.10; // 10% for requests before 25th
 export function calculateCheckout(baseFee, regionCode = 'NG') {
   const isNG = regionCode === 'NG';
 
-  // 1. Platform OPEX fee
+  // 1. Platform OPEX fee (9% inbound)
   const opexFee = parseFloat((baseFee * CHECKOUT_OPEX_RATE).toFixed(2));
 
-  // 2. Gateway pass-through markup (charged to user)
+  // 2. Network Referral Programme Reserve (30% of base fee — funds referral pool)
+  const referralReserve = parseFloat((baseFee * CHECKOUT_REFERRAL_RESERVE_RATE).toFixed(2));
+
+  // 3. Gateway pass-through markup (charged to user)
   const gatewayMarkup = parseFloat((baseFee * CHECKOUT_GATEWAY_RATE).toFixed(2));
 
-  // 3. VAT: 7.5% applied ONLY to service fees (opex + gateway markup)
-  const vatBase = opexFee + gatewayMarkup;
+  // 4. VAT: 7.5% applied ONLY to service fees (opex + gateway markup)
+  const vatBase   = opexFee + gatewayMarkup;
   const vatAmount = parseFloat((vatBase * CHECKOUT_VAT_RATE).toFixed(2));
 
-  // 4. EMTL levy (NGN only, on transactions ≥ ₦10,000)
+  // 5. EMTL levy (NGN only, on transactions ≥ ₦10,000)
   const emtlLevy = (isNG && baseFee >= CHECKOUT_EMTL_THRESHOLD_NG) ? CHECKOUT_EMTL_NG : 0;
 
-  // 5. Total charged to user
-  const totalUserPays = parseFloat((baseFee + opexFee + gatewayMarkup + vatAmount + emtlLevy).toFixed(2));
+  // 6. Total charged to user
+  const totalUserPays = parseFloat(
+    (baseFee + opexFee + referralReserve + gatewayMarkup + vatAmount + emtlLevy).toFixed(2)
+  );
 
-  // 6. Actual gateway cost (Paystack primary, 1.5% capped)
+  // 7. Actual gateway cost (Paystack primary, 1.5% capped)
   const cap = isNG ? PAYSTACK_CAP_NG : PAYSTACK_CAP_US;
   const actualGatewayCost = parseFloat(Math.min(baseFee * PAYSTACK_RATE, cap).toFixed(2));
 
-  // 7. Net extra cash platform retains from fee spread
+  // 8. Net extra cash platform retains from fee spread
   const platformFeeSpread = parseFloat((gatewayMarkup - actualGatewayCost + opexFee).toFixed(2));
 
-  // 8. VAT remitted to FIRS
+  // 9. VAT remitted to FIRS
   const vatRemittedToFIRS = vatAmount;
 
   return {
     baseFee,
     opexFee,
+    referralReserve,
     gatewayMarkup,
     vatAmount,
     vatRemittedToFIRS,
@@ -477,37 +511,35 @@ export function calculateCheckout(baseFee, regionCode = 'NG') {
     platformFeeSpread,
     // Formatted line items for checkout UI
     lineItems: [
-      { label: 'Node Staking Fee',              amount: baseFee,        note: 'Enters protocol vault' },
-      { label: 'Platform Operating Fee (5.0%)', amount: opexFee,        note: 'Infrastructure & maintenance' },
-      { label: 'Gateway & Network Fee (3.0%)',  amount: gatewayMarkup,  note: 'Payment processing charge' },
-      { label: 'VAT on Fees (7.5%)',            amount: vatAmount,      note: 'Applied to service fees only' },
-      ...(emtlLevy ? [{ label: 'Transfer Levy (EMTL)', amount: emtlLevy, note: 'CBN statutory bank duty' }] : []),
+      { label: 'Node Staking Fee',                    amount: baseFee,          note: 'Enters protocol vault' },
+      { label: 'Network Referral Reserve (30%)',       amount: referralReserve,  note: 'Referral programme pool' },
+      { label: 'Platform Operating Fee (5.0%)',        amount: opexFee,          note: 'Infrastructure & maintenance' },
+      { label: 'Gateway & Network Fee (3.0%)',         amount: gatewayMarkup,    note: 'Payment processing charge' },
+      { label: 'VAT on Fees (7.5%)',                   amount: vatAmount,        note: 'Applied to service fees only' },
+      ...(emtlLevy ? [{ label: 'Transfer Levy (EMTL)', amount: emtlLevy,        note: 'CBN statutory bank duty' }] : []),
     ],
   };
 }
 
-// ── Outbound withdrawal calculation (gifts / dividends / refunds) ──
+// ── Outbound withdrawal calculation (gifts / payouts / refunds) ──
 export function calculateWithdrawal(grossAmount, regionCode = 'NG', tierId = 1) {
   const isNG  = regionCode === 'NG';
   const gross = Math.max(0, Number(grossAmount) || 0);
 
-  // 1. Statutory Tax Reserve (15.0% of gross) — platform reserve vault
-  const taxReserve = parseFloat((gross * OUTBOUND_TAX_RESERVE).toFixed(2));
-
-  // 2. Outbound OPEX Fee (7.0% of gross) — platform operations & maintenance
+  // 1. Outbound Platform OPEX Fee (3% of gross) — operations & maintenance
   const opex = parseFloat((gross * OUTBOUND_OPEX).toFixed(2));
 
-  // 3. VAT on OPEX (7.5% applied to OPEX = 0.525% of gross) — remitted to FIRS
+  // 2. VAT on OPEX (7.5% of OPEX = 0.225% effective) — remitted to FIRS
   const vatOnOpex = parseFloat((opex * CHECKOUT_VAT_RATE).toFixed(2));
 
-  // 4. Outbound Bank Clearing Transfer Fee (₦100 flat / $1 USD)
+  // 3. Outbound Bank Clearing Transfer Fee (₦100 flat / $1 USD)
   const txFee = isNG ? OUTBOUND_TRANSFER_FEE_NG : OUTBOUND_TRANSFER_FEE_US;
 
-  // 5. CBN Electronic Money Transfer Levy (EMTL: ₦50 on transactions ≥ ₦10,000 for NGN)
+  // 4. CBN Electronic Money Transfer Levy (₦50 on transactions ≥ ₦10,000 for NGN)
   const emtlLevy = (isNG && gross >= CHECKOUT_EMTL_THRESHOLD_NG) ? CHECKOUT_EMTL_NG : 0;
 
   // Total Protocol Deductions
-  const totalDeductions = parseFloat((taxReserve + opex + vatOnOpex + txFee + emtlLevy).toFixed(2));
+  const totalDeductions = parseFloat((opex + vatOnOpex + txFee + emtlLevy).toFixed(2));
   const netPayout = parseFloat(Math.max(0, gross - totalDeductions).toFixed(2));
 
   // Tier Parameter Matrix Governance (Tiers 1–5 Small, Tiers 6–8 Mid, Tiers 9–15 Premium)
@@ -521,8 +553,6 @@ export function calculateWithdrawal(grossAmount, regionCode = 'NG', tierId = 1) 
 
   return {
     grossAmount: gross,
-    taxReserve,
-    taxReserveRate: OUTBOUND_TAX_RESERVE,
     opex,
     opexRate: OUTBOUND_OPEX,
     vatOnOpex,
@@ -536,10 +566,9 @@ export function calculateWithdrawal(grossAmount, regionCode = 'NG', tierId = 1) 
     isHighValue,
     tierCategory,
     lineItems: [
-      { label: 'Requested Yield Dividend', amount: gross, isDeduction: false, note: 'Gross disbursement from wallet' },
-      { label: 'Statutory Tax Reserve (15.0%)', amount: taxReserve, isDeduction: true, note: 'Protocol tax buffer & audit reserve' },
-      { label: 'Platform OPEX Fee (7.0%)', amount: opex, isDeduction: true, note: 'Infrastructure & cloud node operations' },
-      { label: 'VAT on OPEX (7.5%)', amount: vatOnOpex, isDeduction: true, note: 'FIRS statutory remittance (0.525% effective)' },
+      { label: 'Requested Payout',                   amount: gross,      isDeduction: false, note: 'Gross disbursement from wallet' },
+      { label: 'Platform Processing Fee (3.0%)',      amount: opex,       isDeduction: true,  note: 'Outbound OPEX & infrastructure' },
+      { label: 'VAT on Processing Fee (7.5%)',        amount: vatOnOpex,  isDeduction: true,  note: 'FIRS statutory remittance (0.225% effective)' },
       { label: isNG ? 'NIBSS Instant Transfer Fee' : 'ACH Outbound Wire Fee', amount: txFee, isDeduction: true, note: 'Flat inter-bank clearing charge' },
       ...(emtlLevy > 0 ? [{ label: 'CBN Statutory EMTL Levy', amount: emtlLevy, isDeduction: true, note: 'Electronic money transfer duty (≥ ₦10,000)' }] : []),
     ],
@@ -606,10 +635,80 @@ export function calculateRefund(entryFee, cumulativeGifts, monthsActive = 0, isE
 }
 
 export function applyOutboundFee(gross) {
-  const fee        = parseFloat((gross * OUTBOUND_FEE_RATE).toFixed(2));
-  return { net: parseFloat((gross - fee).toFixed(2)), fee,
-           opex: parseFloat((gross * OUTBOUND_OPEX).toFixed(2)),
-           taxReserve: parseFloat((gross * OUTBOUND_TAX_RESERVE).toFixed(2)) };
+  const fee  = parseFloat((gross * OUTBOUND_FEE_RATE).toFixed(2));
+  const opex = parseFloat((gross * OUTBOUND_OPEX).toFixed(2));
+  return { net: parseFloat((gross - fee).toFixed(2)), fee, opex };
+}
+
+// ══════════════════════════════════════════════════════
+// ── REFERRAL EARNINGS ENGINE ──
+// OR logic — a node earns one rate based on its relationship type.
+// The 30% Referral Reserve is collected at checkout on every deposit;
+// these payouts are drawn from that pool.
+//
+// relationshipType:
+//   'direct'   → one-time 15% bonus when referral first stakes
+//   'mainline' → 1% per annum on the mainline direct referral
+//   'downline'  → 0.1% per annum per level (max 7 binary levels)
+// ══════════════════════════════════════════════════════
+export function calculateReferralEarnings(stakingFee, relationshipType, levelDepth = 1) {
+  const fee = Math.max(0, Number(stakingFee) || 0);
+  let earnings = 0;
+  let description = '';
+
+  if (relationshipType === 'direct') {
+    // One-time bonus on staking event
+    earnings    = parseFloat((fee * REFERRAL_ONETIME_RATE).toFixed(2));
+    description = 'Direct Referral Activation Bonus (15% one-time)';
+  } else if (relationshipType === 'mainline') {
+    // Annual recurring — mainline direct position
+    earnings    = parseFloat((fee * REFERRAL_MAINLINE_RATE).toFixed(2));
+    description = 'Mainline Network Position Yield (1% per annum)';
+  } else if (relationshipType === 'downline') {
+    // Annual per level — binary downline (max 7 levels)
+    const depth = Math.min(Math.max(1, Number(levelDepth) || 1), REFERRAL_DOWNLINE_MAX_LEVELS);
+    earnings    = parseFloat((fee * REFERRAL_DOWNLINE_RATE).toFixed(2));
+    description = `Binary Downline Yield — Level ${depth} (0.1% per annum)`;
+  }
+
+  return {
+    stakingFee:       fee,
+    relationshipType,
+    earnings,
+    description,
+    annualised:       relationshipType === 'direct' ? null : earnings, // direct is one-time only
+  };
+}
+
+// ══════════════════════════════════════════════════════
+// ── INTERNAL PROFIT SPLIT ENGINE (not user-facing) ──
+// Distributes net platform profit after all operating costs & taxes.
+// 60% → Investor distribution pool | 40% → Founder allocation
+// ══════════════════════════════════════════════════════
+function calculateProfitSplit(netProfit) {
+  const profit = Math.max(0, Number(netProfit) || 0);
+  return {
+    netProfit:        parseFloat(profit.toFixed(2)),
+    investorShare:    parseFloat((profit * INVESTOR_PROFIT_SHARE).toFixed(2)),
+    founderShare:     parseFloat((profit * FOUNDER_PROFIT_SHARE).toFixed(2)),
+    investorRate:     INVESTOR_PROFIT_SHARE,
+    founderRate:      FOUNDER_PROFIT_SHARE,
+  };
+}
+
+// ══════════════════════════════════════════════════════
+// ── POOL COMPLETION SELLOUT REVENUE ──
+// When a pool fills all 255 nodes, the platform recognises
+// a Protocol Completion Bonus = 60% of the pool's net OPEX income.
+// ══════════════════════════════════════════════════════
+export function calculatePoolCompletionBonus(poolNetOpex) {
+  const opexNet = Math.max(0, Number(poolNetOpex) || 0);
+  const bonus   = parseFloat((opexNet * POOL_COMPLETION_BONUS_RATE).toFixed(2));
+  return {
+    poolNetOpex: opexNet,
+    completionBonus: bonus,
+    rate: POOL_COMPLETION_BONUS_RATE,
+  };
 }
 
 // ══════════════════════════════════════════════════════
@@ -649,7 +748,7 @@ export const MOCK_USER_NG = {
   phone: '+234 816 592 9400', referralCode: 'NV-OBI-7X2K', region: 'NG',
   tier: TIER_DATA_NG[4], tierId: 5, entryFee: 16000, cumulativeGifts: 4200,
   joinDate: '2026-09-12', status: 'active', subNodes: 5,
-  totalEarned: 4200, monthlyDividend: 0, poolId: 'pool_ng_t5_042',
+  totalEarned: 4200, poolId: 'pool_ng_t5_042',
   poolRank: 12, walletBalance: 4200,
   computeCredits: 120, powerUnits: 120, minedNvt: 65.5000,
   serverModel: 'Echo High-Throughput Server (v5.0)', isGraduate: false,
@@ -660,7 +759,7 @@ export const MOCK_USER_US = {
   phone: '+1 (312) 555-0194', referralCode: 'NV-MJR-9K4P', region: 'US',
   tier: TIER_DATA_US[2], tierId: 3, entryFee: 4, cumulativeGifts: 0.80,
   joinDate: '2026-09-20', status: 'active', subNodes: 3,
-  totalEarned: 0.80, monthlyDividend: 0, poolId: 'pool_us_t3_011',
+  totalEarned: 0.80, poolId: 'pool_us_t3_011',
   poolRank: 7, walletBalance: 0.80,
   computeCredits: 40, powerUnits: 40, minedNvt: 12.0000,
   serverModel: 'Alpha Dedicated Server (v3.0)', isGraduate: false,

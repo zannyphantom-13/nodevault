@@ -1,23 +1,26 @@
-/* FreeMining.css */
+/* FreeMining.css — Only.meme Style Crypto Mining Terminal */
 .free-mining-page {
   min-height: 100vh;
-  padding: 4rem 1rem;
-  background: var(--bg-body);
+  padding: 4rem 1rem 6rem;
+  background: var(--bg-primary);
+  background-image: radial-gradient(ellipse at 50% 10%, rgba(0, 229, 255, 0.08) 0%, transparent 60%);
 }
 
 .mining-hero {
   text-align: center;
-  max-width: 600px;
+  max-width: 640px;
   margin: 0 auto 3rem;
 }
 
 .mining-title {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
 }
 
 .mining-subtitle {
   color: var(--text-secondary);
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   line-height: 1.6;
 }

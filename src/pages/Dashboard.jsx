@@ -768,7 +768,7 @@ export default function Dashboard() {
       setClaimModal({ type: 'bank_gate' });
       return;
     }
-    setDividendAmount(u.monthlyDividend || 5000);
+    setDividendAmount(u.walletBalance || 0);
     setDividendModalOpen(true);
   };
 
@@ -1995,11 +1995,11 @@ export default function Dashboard() {
                       <div>
                         <span className={`badge ${
                           claim.status === 'disbursed' ? 'badge-green' :
-                          claim.status === 'pending_audit' ? 'badge-amber' :
+                          claim.status === 'pending_audit' ? 'badge-cyan' :
                           claim.status === 'approved' ? 'badge-cyan' :
-                          claim.status === 'rejected' ? 'badge-red' : 'badge-amber'
+                          claim.status === 'rejected' ? 'badge-red' : 'badge-cyan'
                         }`}>
-                          {claim.status === 'pending_audit' ? '🟡 Multi-Sig Audit' :
+                          {claim.status === 'pending_audit' ? '🛡️ Multi-Sig Audit' :
                            claim.status === 'pending' ? '⏳ 3-Day EOM' :
                            claim.status === 'approved' ? '🟢 Approved' :
                            claim.status === 'disbursed' ? '✅ Disbursed' : claim.status}
@@ -2019,7 +2019,7 @@ export default function Dashboard() {
             <h2 className="dash-title">Yield Dividends & Protocol Payouts</h2>
             <p className="dash-subtitle">
               {isNG
-                ? 'Monthly yield dividends distributed from validator network operations (15–20% APY).'
+                ? 'Monthly sovereign yield dividends distributed from validator operations (12.0% Sovereign APY).'
                 : 'US Protocol: Dividends are not applicable. Upon completion members exit the system.'}
             </p>
 
@@ -2028,12 +2028,12 @@ export default function Dashboard() {
                 <div className="dash-stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
                   <div className="dash-stat-card">
                     <div className="dash-stat-icon">📊</div>
-                    <div className="dash-stat-value" style={{ color: 'var(--accent-green)' }}>17.3%</div>
+                    <div className="dash-stat-value" style={{ color: 'var(--accent-green)' }}>12.0%</div>
                     <div className="dash-stat-label">Current Network APY</div>
                   </div>
                   <div className="dash-stat-card">
                     <div className="dash-stat-icon">💰</div>
-                    <div className="dash-stat-value">{fmt(u.walletBalance || u.monthlyDividend || 0)}</div>
+                    <div className="dash-stat-value">{fmt(u.walletBalance || 0)}</div>
                     <div className="dash-stat-label">Accrued Yield Balance</div>
                   </div>
                   <div className="dash-stat-card">
@@ -2102,7 +2102,7 @@ export default function Dashboard() {
                               <td style={{ padding: '0.75rem', color: '#00ff94', fontWeight: 700 }}>{fmt(tx.netAmount)}</td>
                               <td style={{ padding: '0.75rem', color: '#94a3b8' }}>{linkedBank?.bankName || 'Verified Bank'}</td>
                               <td style={{ padding: '0.75rem' }}>
-                                <span className={`badge ${tx.status === 'success' || tx.status === 'settled' ? 'badge-green' : tx.status === 'pending_audit' ? 'badge-amber' : 'badge-cyan'}`}>
+                                <span className={`badge ${tx.status === 'success' || tx.status === 'settled' ? 'badge-green' : tx.status === 'pending_audit' ? 'badge-cyan' : 'badge-cyan'}`}>
                                   {tx.status === 'pending_audit' ? '⚖️ Multi-Sig Audit' : tx.status === 'processing' ? '⏳ NIBSS Dispatch' : '✓ Settled'}
                                 </span>
                               </td>
@@ -2316,7 +2316,7 @@ export default function Dashboard() {
                       <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#00ff94' }}>
                         {displayedCycleNodes} / 255 Validators
                       </span>
-                      <span className={`badge ${activeTierTreeData?.isGraduate || networkTree?.isGraduate ? 'badge-green' : 'badge-amber'}`}>
+                      <span className={`badge ${activeTierTreeData?.isGraduate || networkTree?.isGraduate ? 'badge-green' : 'badge-cyan'}`}>
                         {(activeTierTreeData?.isGraduate || networkTree?.isGraduate) ? '✓ Graduated Master Node' : `${displayedCyclePercent}% In-Cycle`}
                       </span>
                     </div>
@@ -2676,7 +2676,7 @@ export default function Dashboard() {
                           </td>
                           <td style={{ color: '#00ff94', fontWeight: 600 }}>{node.hashrate} TH/s</td>
                           <td>
-                            <span className={`badge ${node.isTierQualified ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: '0.68rem' }}>
+                            <span className={`badge ${node.isTierQualified ? 'badge-green' : 'badge-cyan'}`} style={{ fontSize: '0.68rem' }}>
                               {node.isTierQualified ? 'Active Qualified' : 'Unmatched Tier'}
                             </span>
                           </td>
@@ -2710,7 +2710,7 @@ export default function Dashboard() {
                         Under protocol rules, <strong style={{ color: '#fff' }}>sub-node velocity (+5%) and matrix placement only credit when the sponsor holds that same node tier</strong> to prevent reward output discrepancies between different pool economics.
                       </p>
                     </div>
-                    <span className="badge badge-amber" style={{ fontSize: '0.72rem' }}>
+                    <span className="badge badge-cyan" style={{ fontSize: '0.72rem' }}>
                       Reward Output Held in Escrow
                     </span>
                   </div>
@@ -3413,7 +3413,7 @@ export default function Dashboard() {
                   </h3>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
                     {u?.isGraduate
-                      ? 'Your node cluster has achieved Protocol Master status. Lifetime 13% monthly protocol dividends are autonomously mined.'
+                      ? 'Your node cluster has achieved Protocol Master status. Elite validation status is active — network rewards are autonomously processed.'
                       : 'Upon 255-validator network completion, each computing blade successfully concludes its hardware lifecycle and upgrades to the permanent Protocol Master Validator Node.'}
                   </p>
                 </div>
@@ -3820,21 +3820,13 @@ export default function Dashboard() {
                     </div>
 
                     <div className="reg-confirm-row">
-                      <span>Requested Yield Amount</span>
+                      <span>Requested Payout Amount</span>
                       <strong style={{ color: '#fff' }}>{fmt(divAmt)}</strong>
                     </div>
 
                     <div className="reg-confirm-row">
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        Statutory Tax Reserve (15.0%)
-                        <span style={{ fontSize: '0.68rem', color: '#64748b' }}>[Vault Buffer]</span>
-                      </span>
-                      <span style={{ color: '#f87171', fontWeight: 600 }}>−{fmt(breakdown.taxReserve)}</span>
-                    </div>
-
-                    <div className="reg-confirm-row">
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        Platform OPEX Fee (7.0%)
+                        Platform Processing Fee (3.0%)
                         <span style={{ fontSize: '0.68rem', color: '#64748b' }}>[Node Infrastructure]</span>
                       </span>
                       <span style={{ color: '#f87171', fontWeight: 600 }}>−{fmt(breakdown.opex)}</span>

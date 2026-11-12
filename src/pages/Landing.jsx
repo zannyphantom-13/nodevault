@@ -168,7 +168,7 @@ const HOW_STEPS = [
     title: 'Capital Protection Guarantee',
     desc: 'Our automated solvency engine computes net unrecovered principal in real-time, backing your exit with up to 70% (Tier A) or 60% (Tier B) statutory refunds.',
     telemetry: 'Protected by Statutory Reserve Fund',
-    color: 'var(--accent-amber)',
+    color: 'var(--accent-cyan)',
     Icon: IconShield,
   },
 ];
@@ -226,41 +226,40 @@ export default function Landing() {
   return (
     <div className="landing">
 
-      {/* ══════════════════════════════ HERO SECTION ══════════════════════════════ */}
+      {/* ══════════════════════════════ HERO SECTION (only.meme launchpad style) ══════════════════════════════ */}
       <section className="hero-section">
         <div className="hero-grid-lines" aria-hidden="true" />
-        <div className="hero-scan-line" aria-hidden="true" />
+        <div className="hero-ambient-glow" aria-hidden="true" />
 
         <div className="container hero-content">
           <div className={`hero-left ${heroVisible ? 'visible' : ''}`}>
             <div className="badge badge-cyan hero-badge">
-              <span className="pulse-dot" />
-              Live Protocol · 18,742 Active Nodes · Block #4,192,804
+              <span className="pulse-dot" style={{ background: 'var(--accent-cyan)' }} />
+              ⚡ DECENTRALIZED YIELD LAUNCHPAD · 12.0% SOVEREIGN APY
             </div>
 
             <h1 className="hero-headline">
-              Stake Into{' '}
-              <span className="gradient-text">Institutional-Grade</span>
-              <br />
-              Yield Node Pools
+              STAKE VALIDATOR NODES.{' '}
+              <span className="gradient-text-cyan">HARVEST REAL</span>{' '}
+              <span className="gradient-text">SOVEREIGN YIELD.</span>
             </h1>
 
             <p className="hero-desc">
-              NodeVault connects your capital to verified Genesis Node Pools backed by institutional
-              liquidity reserves. Choose your tier, stake once, earn Protocol Yield Dividends
-              — with built-in Capital Protection Guarantees.
+              NodeVault pairs high-velocity validator pools with institutional treasury vaults. 
+              Stake once into 15 progressive node tiers, earn <strong>12.0% annual protocol yield</strong>, 
+              and enjoy an automated <strong>70% Capital Protection Guarantee</strong>.
             </p>
 
             <div className="hero-actions">
-              <Link to="/dashboard" className="btn btn-primary btn-lg" style={{ background: 'linear-gradient(135deg, #00e5ff, #6366f1)', color: '#000', fontWeight: 700 }}>
-                <span>📊</span>
-                Open Dashboard
+              <Link to="/tiers" className="btn btn-primary btn-lg">
+                <span>⚡</span>
+                Launch Terminal
               </Link>
-              <Link to="/tiers" className="btn btn-secondary btn-lg">
-                View All Tiers
+              <Link to="/dashboard" className="btn btn-secondary btn-lg">
+                View Dashboard
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
               </Link>
-              <Link to="/mining" className="btn btn-outline-cyan btn-lg">
+              <Link to="/mining" className="btn btn-cyan btn-lg">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 Mine $NVT Free
               </Link>
@@ -269,9 +268,9 @@ export default function Landing() {
             {/* Trust row */}
             <div className="hero-trust">
               {[
-                'Capital Protection Guarantee',
-                'Institutional Yield Reserves',
-                'Stake from ₦1,000',
+                '70% Capital Guarantee Floor',
+                '12.0% Tax-Exempt T-Bill Backing',
+                'Instant NIBSS & Paystack Payouts',
               ].map(t => (
                 <div key={t} className="trust-item">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -281,18 +280,73 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Hero visual */}
+          {/* Hero right: Live Launchpad Terminal Card (only.meme token card aesthetic) */}
           <div className={`hero-right ${heroVisible ? 'visible' : ''}`}>
-            <div className="hero-nodes-visual">
-              <div className="hero-nodes-ring">
-                <div className="hero-nodes-core">
-                  <img src="/logo.svg" alt="NodeVault" width="44" height="44" style={{ marginBottom: 4 }} />
-                  <span>NodeVault</span>
+            <div className="launchpad-terminal-card">
+              {/* Card Header */}
+              <div className="terminal-card-top">
+                <div className="terminal-token-info">
+                  <div className="terminal-token-avatar">
+                    <span>⚡</span>
+                  </div>
+                  <div>
+                    <div className="terminal-token-ticker">$NVT-ECHO · TIER 05</div>
+                    <div className="terminal-token-name">Echo Enterprise Validator</div>
+                  </div>
+                </div>
+                <span className="badge badge-green">🟢 Live Pool</span>
+              </div>
+
+              {/* Bonding / Pool Fill Progress Bar */}
+              <div className="terminal-curve-box">
+                <div className="terminal-curve-header">
+                  <span>Validation Curve (Pool Capacity)</span>
+                  <strong className="text-accent-cyan">84.2% Filled</strong>
+                </div>
+                <div className="terminal-progress-track">
+                  <div className="terminal-progress-fill" style={{ width: '84.2%' }} />
+                </div>
+                <div className="terminal-curve-footer">
+                  <span>214 / 255 Nodes Staked</span>
+                  <span>41 Slots Remaining</span>
                 </div>
               </div>
-              {[TIER_DATA_NG[0], TIER_DATA_NG[4], TIER_DATA_NG[7], TIER_DATA_NG[11], TIER_DATA_NG[14]].map((tier, i) => (
-                <NodeCard key={tier.id} tier={tier} delay={i * 0.18} />
-              ))}
+
+              {/* Data Grid */}
+              <div className="terminal-data-grid">
+                <div className="terminal-cell">
+                  <div className="terminal-cell-label">Staking Entry</div>
+                  <div className="terminal-cell-val" style={{ color: '#fff' }}>₦16,000</div>
+                  <div className="terminal-cell-sub">Single Stake</div>
+                </div>
+                <div className="terminal-cell">
+                  <div className="terminal-cell-label">Sovereign APY</div>
+                  <div className="terminal-cell-val" style={{ color: 'var(--accent-green)' }}>12.0%</div>
+                  <div className="terminal-cell-sub">Institutional Rate</div>
+                </div>
+                <div className="terminal-cell">
+                  <div className="terminal-cell-label">Capital Protection</div>
+                  <div className="terminal-cell-val" style={{ color: 'var(--accent-cyan)' }}>₦11,200</div>
+                  <div className="terminal-cell-sub">70% Tier A Floor</div>
+                </div>
+                <div className="terminal-cell">
+                  <div className="terminal-cell-label">Referral Pool</div>
+                  <div className="terminal-cell-val" style={{ color: 'var(--accent-cyan)' }}>30%</div>
+                  <div className="terminal-cell-sub">15% Direct / Binary</div>
+                </div>
+              </div>
+
+              {/* Terminal Action Button */}
+              <Link to="/tiers" className="btn btn-primary btn-block terminal-stake-btn">
+                Stake Echo Node ₦16,000 ⚡
+              </Link>
+
+              {/* Bottom Micro Ticker */}
+              <div className="terminal-micro-row">
+                <span>🛡️ 3-Day Liquidity Buffer</span>
+                <span>•</span>
+                <span>SEC-Aligned Custody</span>
+              </div>
             </div>
           </div>
         </div>
@@ -302,11 +356,11 @@ export default function Landing() {
       <section className="stats-bar" ref={statsRef}>
         <div className="container stats-bar-inner">
           {[
-            { label: 'Active Nodes',        color: 'var(--accent-indigo)', el: <Counter end={stats.totalNodes} /> },
-            { label: 'Total Value Staked',  color: 'var(--accent-green)',  el: <>₦<Counter end={4820} suffix="M+" /></> },
-            { label: 'Active Genesis Pools',color: 'var(--accent-amber)',  el: <Counter end={stats.activePools} /> },
-            { label: 'Avg. Annual APY',     color: 'var(--accent-cyan)',   el: <Counter end={173} suffix="%" duration={1800} /> },
-            { label: 'Protocol Graduates',  color: 'var(--accent-green)',  el: <Counter end={stats.graduates} /> },
+            { label: 'Active Network Nodes', color: 'var(--accent-cyan)', el: <Counter end={stats.totalNodes} /> },
+            { label: 'Total Value Staked',   color: 'var(--accent-cyan)', el: <>₦<Counter end={4820} suffix="M+" /></> },
+            { label: 'Genesis Pools Live',   color: 'var(--accent-indigo)', el: <Counter end={stats.activePools} /> },
+            { label: 'Sovereign APY',        color: 'var(--accent-green)', el: <>12.0%</> },
+            { label: 'Protocol Graduates',   color: '#fff', el: <Counter end={stats.graduates} /> },
           ].map(({ label, color, el }, i) => (
             <React.Fragment key={label}>
               {i > 0 && <div className="stat-divider" />}
@@ -498,7 +552,7 @@ export default function Landing() {
               <div className="refund-tiers-list">
                 {[
                   { tier: 'A', label: 'Full Protection',    condition: 'Zero yield received',      pct: '70% (End of Month)',        color: 'var(--accent-green)' },
-                  { tier: 'B', label: 'Partial Protection', condition: 'Yield < 60% of stake',     pct: 'Top up to 60% (After 6 months)', color: 'var(--accent-amber)' },
+                  { tier: 'B', label: 'Partial Protection', condition: 'Yield < 60% of stake',     pct: 'Top up to 60% (After 6 months)', color: 'var(--accent-cyan)' },
                   { tier: 'C', label: 'Disqualified',       condition: 'Yield ≥ 60% of stake',     pct: '₦0 (Cap reached)',          color: 'var(--accent-red)' },
                 ].map(r => (
                   <div key={r.tier} className="refund-tier-row">
@@ -647,7 +701,7 @@ export default function Landing() {
 
                   <div className="refund-calc-row">
                     <span>Eligibility Status</span>
-                    <span className={`badge ${calcTier === 'A' ? 'badge-green' : calcTier === 'B' ? 'badge-amber' : 'badge-red'}`}>
+                    <span className={`badge ${calcTier === 'A' ? 'badge-green' : calcTier === 'B' ? 'badge-cyan' : 'badge-red'}`}>
                       Tier {calcTier} {calcTier === 'A' ? '(70% Protection)' : calcTier === 'B' ? '(Top up to 60%)' : '(Cap Satisfied)'}
                     </span>
                   </div>

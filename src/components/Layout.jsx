@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { formatCurrency } from '../data/platform';
 import NotificationCenter from './NotificationCenter';
 import UserGuideModal from './UserGuideModal';
 import './Navbar.css';
@@ -25,45 +26,82 @@ export default function Layout() {
 
   const kycStatus = user?.kycStatus || 'unverified';
   const isAdmin   = user?.role === 'admin' || user?.email?.includes('admin');
+  const userBalance = user?.walletBalance || 0;
 
   return (
     <div className="layout-content">
-      {/* Animated background orbs */}
+      {/* Top Live Protocol Ticker Bar (only.meme launchpad style) */}
+      <div className="protocol-ticker-strip">
+        <div className="ticker-inner">
+          <div className="ticker-track">
+            <span className="ticker-item"><span className="pulse-dot" /> <strong>MAINNET ONLINE</strong></span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item"><strong className="ticker-cyan">12.0%</strong> SOVEREIGN APY</span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item">CAPITAL PROTECTION: <strong className="ticker-green">70% GUARANTEE</strong></span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item">REFERRAL REWARDS: <strong className="ticker-cyan">15% DIRECT OR 1% MAINLINE</strong></span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item">SETTLEMENT: <strong className="ticker-indigo">INSTANT NIBSS & PAYSTACK (₦ NGN)</strong></span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item"><span className="pulse-dot" /> <strong>MAINNET ONLINE</strong></span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item"><strong className="ticker-cyan">12.0%</strong> SOVEREIGN APY</span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item">CAPITAL PROTECTION: <strong className="ticker-green">70% GUARANTEE</strong></span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item">DOWNLINE POOL: <strong className="ticker-cyan">0.1% MAX 7 LEVELS</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {/* Ambient background glow layers */}
       <div className="layout-bg" aria-hidden="true">
-        <div className="bg-orb bg-orb-1" />
-        <div className="bg-orb bg-orb-2" />
-        <div className="bg-orb bg-orb-3" />
+        <div className="bg-glow-orb bg-glow-1" />
+        <div className="bg-glow-orb bg-glow-2" />
+        <div className="bg-glow-orb bg-glow-3" />
       </div>
 
       {/* Navbar */}
       <nav className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
         <div className="container navbar-inner">
-          {/* Logo */}
-          <NavLink to="/" className="navbar-logo">
-            <div className="navbar-logo-icon">
-              <img src="/logo.svg" alt="NodeVault Logo" width="28" height="28" />
+          {/* Logo & Protocol Badge */}
+          <div className="navbar-brand-group">
+            <NavLink to="/" className="navbar-logo">
+              <div className="navbar-logo-icon">
+                <img src="/logo.svg" alt="NodeVault Logo" width="26" height="26" />
+              </div>
+              <div className="navbar-logo-wrap">
+                <span className="navbar-logo-text">
+                  NODE<span className="gradient-text-cyan">VAULT</span>
+                </span>
+                <span className="navbar-badge-tag">V2.4</span>
+              </div>
+            </NavLink>
+
+            <div className="nav-protocol-pill" title="Native NGN Settlement Engine">
+              <span className="flag-icon">🇳🇬</span>
+              <span className="protocol-label">NGN NATIVE</span>
+              <span className="pulse-dot" />
             </div>
-            <span className="navbar-logo-text">
-              Node<span className="gradient-text">Vault</span>
-            </span>
-          </NavLink>
+          </div>
 
           {/* Desktop nav links */}
           <div className="navbar-links">
             <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Home
+              Explore
             </NavLink>
             <NavLink to="/tiers" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Node Tiers
+              <span className="nav-tag-badge">15 TIERS</span> Node Tiers
             </NavLink>
-            <NavLink to="/mining" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} style={{ color: 'var(--accent-cyan)' }}>
-              Free Mining
+            <NavLink to="/mining" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              Mining Terminal ⚡
             </NavLink>
             <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               Dashboard
             </NavLink>
             {isLoggedIn && isAdmin && (
-              <NavLink to="/admin" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} style={{ color: '#FACC15', fontWeight: 700 }}>
+              <NavLink to="/admin" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
                 🛡️ Admin
               </NavLink>
             )}
@@ -74,8 +112,7 @@ export default function Layout() {
             {/* Interactive User Guide Button */}
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ fontSize: '0.78rem', padding: '0.35rem 0.65rem', borderColor: 'rgba(0, 229, 255, 0.35)', color: '#00e5ff', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              className="btn btn-secondary btn-sm nav-guide-btn"
               onClick={() => setShowUserGuide(true)}
               title="Interactive Platform Guide & Walkthrough"
             >
@@ -89,26 +126,29 @@ export default function Layout() {
               <div className="navbar-user">
                 <Link
                   to="/account"
-                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  className="nav-user-pill"
+                  title="View Payout Accounts & KYC"
                 >
-                  <span className="pulse-dot" style={{ background: '#00e5ff' }} />
-                  <span className="navbar-username">{user?.name?.split(' ')[0]}</span>
+                  <span className={`user-status-dot ${kycStatus === 'verified' ? 'verified' : ''}`} />
+                  <div className="nav-user-info">
+                    <span className="navbar-username">{user?.name?.split(' ')[0]}</span>
+                    <span className="navbar-balance">₦{Number(userBalance || 0).toLocaleString('en-NG')}</span>
+                  </div>
                 </Link>
                 <button
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-secondary btn-sm nav-exit-btn"
                   onClick={() => { logout(); navigate('/'); }}
-                  style={{ marginLeft: 6 }}
                 >
                   Exit
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <div className="nav-auth-actions">
                 <NavLink to="/login" className="btn btn-secondary btn-sm">
                   Sign In
                 </NavLink>
-                <NavLink to="/register" className="btn btn-primary btn-sm">
-                  Create Account
+                <NavLink to="/register" className="btn btn-sm btn-launch-terminal">
+                  Launch Terminal ⚡
                 </NavLink>
               </div>
             )}
@@ -126,17 +166,42 @@ export default function Layout() {
 
         {/* Mobile Menu */}
         <div className={`mobile-menu ${menuOpen ? 'open' : ''}`}>
-          <NavLink to="/" end className="mobile-link" onClick={() => setMenuOpen(false)}>Home</NavLink>
-          <NavLink to="/tiers" className="mobile-link" onClick={() => setMenuOpen(false)}>Node Tiers</NavLink>
-          <NavLink to="/mining" className="mobile-link" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent-cyan)' }}>Free Mining</NavLink>
-          <NavLink to="/dashboard" className="mobile-link" onClick={() => setMenuOpen(false)}>Dashboard</NavLink>
+          <div className="mobile-protocol-status">
+            <div className="mobile-network-indicator">
+              <span className="pulse-dot" />
+              <span>NGN Mainnet Protocol (12.0% APY)</span>
+            </div>
+            <span className="badge badge-cyan">₦ NGN Live</span>
+          </div>
+
+          <NavLink to="/" end className="mobile-link" onClick={() => setMenuOpen(false)}>
+            <span>Explore</span>
+            <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>Home</span>
+          </NavLink>
+          <NavLink to="/tiers" className="mobile-link" onClick={() => setMenuOpen(false)}>
+            <span>Node Tiers (15)</span>
+            <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>12% APY</span>
+          </NavLink>
+          <NavLink to="/mining" className="mobile-link" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent-cyan)' }}>
+            <span>Mining Terminal</span>
+            <span>⚡</span>
+          </NavLink>
+          <NavLink to="/dashboard" className="mobile-link" onClick={() => setMenuOpen(false)}>
+            <span>Dashboard</span>
+          </NavLink>
           {isLoggedIn ? (
             <>
-              <NavLink to="/kyc" className="mobile-link" onClick={() => setMenuOpen(false)}>KYC Verification ({kycStatus})</NavLink>
-              <NavLink to="/account" className="mobile-link" onClick={() => setMenuOpen(false)}>Payout Accounts & Profile</NavLink>
+              <NavLink to="/kyc" className="mobile-link" onClick={() => setMenuOpen(false)}>
+                <span>KYC Verification</span>
+                <span className={`badge ${kycStatus === 'verified' ? 'badge-green' : 'badge-cyan'}`}>{kycStatus}</span>
+              </NavLink>
+              <NavLink to="/account" className="mobile-link" onClick={() => setMenuOpen(false)}>
+                <span>Payout Accounts & Profile</span>
+                <span className="navbar-balance">₦{Number(userBalance || 0).toLocaleString('en-NG')}</span>
+              </NavLink>
               {isAdmin && (
-                <NavLink to="/admin" className="mobile-link" onClick={() => setMenuOpen(false)} style={{ color: '#FACC15', fontWeight: 700 }}>
-                  🛡️ Admin Panel
+                <NavLink to="/admin" className="mobile-link" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                  <span>🛡️ Admin Panel</span>
                 </NavLink>
               )}
               <button
@@ -148,12 +213,12 @@ export default function Layout() {
               </button>
             </>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: 12 }}>
               <NavLink to="/login" className="btn btn-secondary" onClick={() => setMenuOpen(false)}>
                 Sign In
               </NavLink>
-              <NavLink to="/register" className="btn btn-primary" onClick={() => setMenuOpen(false)}>
-                Create Account
+              <NavLink to="/register" className="btn btn-launch-terminal" onClick={() => setMenuOpen(false)}>
+                Launch Terminal ⚡
               </NavLink>
             </div>
           )}
@@ -163,6 +228,11 @@ export default function Layout() {
       <main className="page-enter">
         <Outlet />
       </main>
+
+      {/* Interactive Platform User Guide Modal */}
+      {showUserGuide && (
+        <UserGuideModal onClose={() => setShowUserGuide(false)} />
+      )}
 
       {/* Footer */}
       <footer className="footer">
@@ -183,7 +253,7 @@ export default function Layout() {
             <span className="footer-brand-text">NodeVault</span>
           </div>
           <p className="footer-copy">
-            © 2026 NodeVault Protocol. Institutional-grade yield staking infrastructure.
+            © 2026 NodeVault Protocol. Institutional-grade yield staking infrastructure. 100% Native NGN Settlement.
           </p>
           <div className="footer-links">
             <Link to="/kyc" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>AML / KYC</Link>

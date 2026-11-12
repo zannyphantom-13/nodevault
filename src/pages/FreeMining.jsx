@@ -258,8 +258,8 @@ export default function FreeMining() {
                 1× Processing Velocity (60.0s / block)
               </span>
             </div>
-            <div className={`badge ${isMining ? 'badge-green pulse' : 'badge-amber'}`}>
-              {isMining ? '🟢 Server Active' : '🟡 Server Standby'}
+            <div className={`badge ${isMining ? 'badge-green pulse' : 'badge-cyan'}`}>
+              {isMining ? '🟢 Server Active' : '⚪ Server Standby'}
             </div>
           </div>
 
@@ -274,7 +274,7 @@ export default function FreeMining() {
                 {minedAmount.toFixed(4)} <span className="allocation-symbol">$NVT</span>
               </div>
               <div className="allocation-usd">
-                ≈ {isNG ? `₦${(minedAmount * coinRate).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN` : `$${(minedAmount * coinRate).toFixed(4)} USD`}
+                ≈ ₦{(minedAmount * coinRate).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
                   (@ ₦18/token parity)
                 </span>
@@ -292,7 +292,7 @@ export default function FreeMining() {
               {isMining ? '⚡ Solving Block (60s)...' : (!canMine ? 'Hardware Resources Required' : '▶ Power On Public Server')}
             </button>
             {!canMine && !isMining && (
-              <div style={{textAlign: 'center', marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--accent-amber)'}}>
+              <div style={{textAlign: 'center', marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--accent-cyan)'}}>
                 You need at least 1 Power Unit and 1 Compute Credit to validate a block.
               </div>
             )}
@@ -407,7 +407,7 @@ export default function FreeMining() {
               {canMine ? (
                 <strong style={{ color: 'var(--accent-cyan)' }}>Operational</strong>
               ) : (
-                <strong style={{ color: 'var(--accent-amber)' }}>Resources Depleted</strong>
+                <strong style={{ color: 'var(--accent-red)' }}>Resources Depleted</strong>
               )}
             </div>
             <div className="airdrop-info-item">

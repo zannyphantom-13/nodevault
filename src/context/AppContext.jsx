@@ -14,10 +14,8 @@ import { dbAuth, dbKYC, dbBank, dbDocs, dbRefunds, dbTransactions, dbNetwork, db
 const Ctx = createContext(null);
 
 export default function AppContext({ children }) {
-  // Region state — defaults to NG if stored or null for modal
-  const [regionCode, setRegionCode] = useState(() => {
-    return localStorage.getItem('nodevault_region') || 'NG';
-  });
+  // Region strictly locked to Nigeria (NGN)
+  const [regionCode] = useState('NG');
 
   const [isLoggedIn,   setIsLoggedIn]   = useState(false);
   const [user,         setUser]         = useState(null);
@@ -31,10 +29,6 @@ export default function AppContext({ children }) {
     if (active) {
       setUser(active);
       setIsLoggedIn(true);
-      if (active.region) {
-        setRegionCode(active.region);
-        localStorage.setItem('nodevault_region', active.region);
-      }
     }
 
     // 2. Supabase Cloud Session & OAuth Listener (Google Sign-In)
@@ -46,10 +40,6 @@ export default function AppContext({ children }) {
           if (synced) {
             setUser(synced);
             setIsLoggedIn(true);
-            if (synced.region) {
-              setRegionCode(synced.region);
-              localStorage.setItem('nodevault_region', synced.region);
-            }
           }
         }
       }).catch(err => console.warn('Supabase getSession error:', err));
@@ -60,10 +50,6 @@ export default function AppContext({ children }) {
           if (synced) {
             setUser(synced);
             setIsLoggedIn(true);
-            if (synced.region) {
-              setRegionCode(synced.region);
-              localStorage.setItem('nodevault_region', synced.region);
-            }
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -83,37 +69,17 @@ export default function AppContext({ children }) {
     setDbStatus(dbConnection.getStatusSummary());
   };
 
-  // Derived region object + tier data
-  const region = regionCode ? REGIONS[regionCode] : REGIONS.NG;
-  const tierData = useMemo(() => {
-    if (!regionCode) return TIER_DATA_NG;
-    return regionCode === 'NG' ? TIER_DATA_NG : TIER_DATA_US;
-  }, [regionCode]);
+  // Strictly Nigerian Naira (NGN) platform
+  const region   = REGIONS.NG;
+  const tierData = TIER_DATA_NG;
+  const pools    = MOCK_POOLS_NG;
+  const mockUser = MOCK_USER_NG;
 
-  const pools = useMemo(() => {
-    if (!regionCode) return MOCK_POOLS_NG;
-    return regionCode === 'NG' ? MOCK_POOLS_NG : MOCK_POOLS_US;
-  }, [regionCode]);
-
-  const mockUser = regionCode === 'NG' ? MOCK_USER_NG : MOCK_USER_US;
-
-  // Region selector
-  const selectRegion = (code) => {
-    setRegionCode(code);
-    localStorage.setItem('nodevault_region', code);
-    if (user) {
-      const updated = dbAuth.updateUser({ region: code });
-      setUser(updated);
-    }
-  };
+  const selectRegion = () => {}; // Strictly NGN supported
 
   const login = (userData) => {
     setUser(userData);
     setIsLoggedIn(true);
-    if (userData.region) {
-      setRegionCode(userData.region);
-      localStorage.setItem('nodevault_region', userData.region);
-    }
     refreshDbStatus();
   };
 
