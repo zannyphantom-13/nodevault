@@ -128,8 +128,9 @@ export const TIER_CATEGORIES = {
 // ══════════════════════════════════════════════════════
 
 // ── Outbound (withdrawal / payout) fee architecture ──
-export const OUTBOUND_OPEX         = 0.03;  // 3% Platform OPEX on outbound payouts
-export const OUTBOUND_FEE_RATE     = 0.03;  // Total outbound deduction = OPEX only (tax reserve removed)
+export const OUTBOUND_OPEX         = 0.035; // 3.5% Platform OPEX on outbound payouts (statutory standard)
+export const OUTBOUND_FEE_RATE     = 0.035; // Total outbound deduction = OPEX
+export const OUTBOUND_VAT_RATE     = 0.075; // 7.5% statutory VAT on outbound service charge
 
 // ── Refund & Statutory Capital Protection constants ──
 // Under Federal Government Treasury Bill & NIBSS statutory regulation,
@@ -559,20 +560,46 @@ export const MIN_WITHDRAWAL_US = 10;     // smallest category minimum (USD)
 
 // ══════════════════════════════════════════════════════
 // ── CHECKOUT FEE ARCHITECTURE (Paystack Primary) ──
-//   Platform OPEX Fee (Inbound):  5.0% of base fee
+//   Platform OPEX Fee (Inbound):  7.5% of base fee (configurable in Admin)
 //   Network Referral Reserve:    30.0% of base fee (funds referral pool)
 //   Gateway Pass-Through:         3.0% of base fee (markup)
-//   VAT:                          7.5% of (OPEX + Gateway) only
+//   VAT:                          7.5% of (OPEX + Gateway) only (configurable in Admin)
 //   EMTL Levy:                   ₦50 flat on txns ≥ ₦10,000
 //   Actual Paystack Cost:         1.5% capped at ₦2,000
 //   Actual Monnify Fallback:      1.2% capped at ₦1,000
 // ══════════════════════════════════════════════════════
-export const CHECKOUT_OPEX_RATE    = 0.05;   // 5% platform operating fee (inbound)
+export const CHECKOUT_OPEX_RATE    = 0.075;  // 7.5% platform operating fee (inbound)
 export const CHECKOUT_REFERRAL_RESERVE_RATE = 0.30; // 30% referral programme reserve (inbound deposit inclusion)
 export const CHECKOUT_GATEWAY_RATE = 0.03;   // 3% pass-through markup to user
-export const CHECKOUT_VAT_RATE     = 0.075;  // 7.5% VAT on service fees only
+export const CHECKOUT_VAT_RATE     = 0.075;  // 7.5% VAT on service fees only (inbound)
 export const CHECKOUT_EMTL_NG      = 50;     // ₦50 flat levy ≥ ₦10,000 (NGN only)
 export const CHECKOUT_EMTL_THRESHOLD_NG = 10_000;
+
+// Dynamic Protocol Fee Loader (synchronizes with Admin-configured values)
+export function getActiveProtocolFees() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('nodevault_protocol_fees') : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        inboundOpexRate: typeof parsed.inboundOpexRate === 'number' ? parsed.inboundOpexRate : CHECKOUT_OPEX_RATE,
+        outboundOpexRate: typeof parsed.outboundOpexRate === 'number' ? parsed.outboundOpexRate : OUTBOUND_OPEX,
+        inboundVatRate: typeof parsed.inboundVatRate === 'number' ? parsed.inboundVatRate : CHECKOUT_VAT_RATE,
+        outboundVatRate: typeof parsed.outboundVatRate === 'number' ? parsed.outboundVatRate : OUTBOUND_VAT_RATE,
+        lastUpdated: parsed.lastUpdated || null,
+        updatedBy: parsed.updatedBy || null,
+      };
+    }
+  } catch (e) {}
+  return {
+    inboundOpexRate: CHECKOUT_OPEX_RATE, // 7.5%
+    outboundOpexRate: OUTBOUND_OPEX,     // 3.5%
+    inboundVatRate: CHECKOUT_VAT_RATE,   // 7.5%
+    outboundVatRate: OUTBOUND_VAT_RATE,  // 7.5%
+    lastUpdated: null,
+    updatedBy: 'Default Policy',
+  };
+}
 
 // Actual gateway costs (for platform net calculation)
 export const PAYSTACK_RATE         = 0.015;  // 1.5%
@@ -652,9 +679,12 @@ export function getEarlyExitBracket(days = 0, isEndOfMonth = false) {
 // ══════════════════════════════════════════════════════
 export function calculateCheckout(baseFee, regionCode = 'NG', isFirstNodeRegistration = false, optInReferral = false) {
   const isNG = regionCode === 'NG';
+  const fees = getActiveProtocolFees();
+  const activeInboundOpexRate = fees.inboundOpexRate;
+  const activeInboundVatRate = fees.inboundVatRate;
 
-  // 1. Platform OPEX fee (5% inbound)
-  const opexFee = parseFloat((baseFee * CHECKOUT_OPEX_RATE).toFixed(2));
+  // 1. Platform OPEX fee (default 7.5% inbound, admin configurable)
+  const opexFee = parseFloat((baseFee * activeInboundOpexRate).toFixed(2));
 
   // 2. Network Referral Programme Reserve (30% of base fee — funds referral pool)
   // ONLY charged when it is user's first node registration AND they explicitly opt into the referral programme!
@@ -666,9 +696,9 @@ export function calculateCheckout(baseFee, regionCode = 'NG', isFirstNodeRegistr
   // 3. Gateway pass-through markup (charged to user)
   const gatewayMarkup = parseFloat((baseFee * CHECKOUT_GATEWAY_RATE).toFixed(2));
 
-  // 4. VAT: 7.5% applied ONLY to service fees (opex + gateway markup)
+  // 4. VAT: applied ONLY to service fees (opex + gateway markup)
   const vatBase   = opexFee + gatewayMarkup;
-  const vatAmount = parseFloat((vatBase * CHECKOUT_VAT_RATE).toFixed(2));
+  const vatAmount = parseFloat((vatBase * activeInboundVatRate).toFixed(2));
 
   // 5. EMTL levy (NGN only, on transactions ≥ ₦10,000)
   const emtlLevy = (isNG && baseFee >= CHECKOUT_EMTL_THRESHOLD_NG) ? CHECKOUT_EMTL_NG : 0;
@@ -691,6 +721,8 @@ export function calculateCheckout(baseFee, regionCode = 'NG', isFirstNodeRegistr
   return {
     baseFee,
     opexFee,
+    opexRate: activeInboundOpexRate,
+    vatRate: activeInboundVatRate,
     referralReserve,
     isReferralEligible,
     gatewayMarkup,
@@ -706,9 +738,9 @@ export function calculateCheckout(baseFee, regionCode = 'NG', isFirstNodeRegistr
       ...(referralReserve > 0 ? [
         { label: 'One-Time Referral Network License (30%)', amount: referralReserve, note: 'Unlocks lifetime affiliate earnings' }
       ] : []),
-      { label: 'Platform Operating Fee (5.0%)',        amount: opexFee,         note: 'Inbound infrastructure & hosting' },
+      { label: `Platform Operating Fee (${(activeInboundOpexRate * 100).toFixed(1)}%)`, amount: opexFee, note: 'Inbound infrastructure & hosting' },
       { label: 'Gateway & Network Fee (3.0%)',         amount: gatewayMarkup,   note: 'Payment processing charge' },
-      { label: 'VAT on Fees (7.5%)',                   amount: vatAmount,       note: 'Applied to service fees only' },
+      { label: `VAT on Service Fees (${(activeInboundVatRate * 100).toFixed(1)}%)`,    amount: vatAmount, note: 'Applied to service fees only' },
       ...(emtlLevy ? [{ label: 'Transfer Levy (EMTL)', amount: emtlLevy,        note: 'CBN statutory bank duty' }] : []),
     ],
   };
@@ -718,12 +750,15 @@ export function calculateCheckout(baseFee, regionCode = 'NG', isFirstNodeRegistr
 export function calculateWithdrawal(grossAmount, regionCode = 'NG', tierId = 1) {
   const isNG  = regionCode === 'NG';
   const gross = Math.max(0, Number(grossAmount) || 0);
+  const fees = getActiveProtocolFees();
+  const activeOutboundOpexRate = fees.outboundOpexRate;
+  const activeOutboundVatRate = fees.outboundVatRate;
 
-  // 1. Outbound Platform OPEX Fee (3% of gross) — operations & maintenance
-  const opex = parseFloat((gross * OUTBOUND_OPEX).toFixed(2));
+  // 1. Outbound Platform OPEX Fee (default 3.5% of gross, admin configurable)
+  const opex = parseFloat((gross * activeOutboundOpexRate).toFixed(2));
 
-  // 2. VAT on OPEX (7.5% of OPEX = 0.225% effective) — remitted to FIRS
-  const vatOnOpex = parseFloat((opex * CHECKOUT_VAT_RATE).toFixed(2));
+  // 2. VAT on OPEX (default 7.5% of OPEX, admin configurable) — remitted to FIRS
+  const vatOnOpex = parseFloat((opex * activeOutboundVatRate).toFixed(2));
 
   // 3. Outbound Bank Clearing Transfer Fee (₦100 flat / $1 USD)
   const txFee = isNG ? OUTBOUND_TRANSFER_FEE_NG : OUTBOUND_TRANSFER_FEE_US;
@@ -747,7 +782,8 @@ export function calculateWithdrawal(grossAmount, regionCode = 'NG', tierId = 1) 
   return {
     grossAmount: gross,
     opex,
-    opexRate: OUTBOUND_OPEX,
+    opexRate: activeOutboundOpexRate,
+    vatRate: activeOutboundVatRate,
     vatOnOpex,
     txFee,
     emtlLevy,
@@ -760,8 +796,8 @@ export function calculateWithdrawal(grossAmount, regionCode = 'NG', tierId = 1) 
     tierCategory,
     lineItems: [
       { label: 'Requested Payout',                   amount: gross,      isDeduction: false, note: 'Gross disbursement from wallet' },
-      { label: 'Platform Processing Fee (3.0%)',      amount: opex,       isDeduction: true,  note: 'Outbound OPEX & infrastructure' },
-      { label: 'VAT on Processing Fee (7.5%)',        amount: vatOnOpex,  isDeduction: true,  note: 'FIRS statutory remittance (0.225% effective)' },
+      { label: `Platform Processing Fee (${(activeOutboundOpexRate * 100).toFixed(1)}%)`,      amount: opex,       isDeduction: true,  note: 'Outbound OPEX & infrastructure' },
+      { label: `VAT on Processing Fee (${(activeOutboundVatRate * 100).toFixed(1)}%)`,        amount: vatOnOpex,  isDeduction: true,  note: `FIRS statutory remittance (${(activeOutboundOpexRate * activeOutboundVatRate * 100).toFixed(3)}% effective)` },
       { label: isNG ? 'NIBSS Instant Transfer Fee' : 'ACH Outbound Wire Fee', amount: txFee, isDeduction: true, note: 'Flat inter-bank clearing charge' },
       ...(emtlLevy > 0 ? [{ label: 'CBN Statutory EMTL Levy', amount: emtlLevy, isDeduction: true, note: 'Electronic money transfer duty (≥ ₦10,000)' }] : []),
     ],
@@ -811,8 +847,10 @@ export function calculateRefund(entryFee, cumulativeGifts, monthsActive = 0, isE
 }
 
 export function applyOutboundFee(gross) {
-  const fee  = parseFloat((gross * OUTBOUND_FEE_RATE).toFixed(2));
-  const opex = parseFloat((gross * OUTBOUND_OPEX).toFixed(2));
+  const fees = getActiveProtocolFees();
+  const rate = fees.outboundOpexRate;
+  const fee  = parseFloat((gross * rate).toFixed(2));
+  const opex = fee;
   return { net: parseFloat((gross - fee).toFixed(2)), fee, opex };
 }
 
@@ -1069,90 +1107,12 @@ export function formatProjected(ngnAmount, mode = 'NGN', compact = false) {
 }
 
 // ══════════════════════════════════════════════════════
-// ── MOCK DATA ──
+// ── LIVE DATA SCHEMAS (Mock fallbacks deprecated) ──
 // ══════════════════════════════════════════════════════
-export const MOCK_USER_NG = {
-  id: 'usr_ng_001', name: 'Chukwuemeka Obi', email: 'c.obi@nodevault.io',
-  phone: '+234 816 592 9400', referralCode: 'NV-OBI-7X2K', region: 'NG',
-  tier: TIER_DATA_NG[4], tierId: 5, entryFee: 16000, cumulativeGifts: 4200,
-  joinDate: '2026-09-12', status: 'active', subNodes: 5,
-  totalEarned: 4200, poolId: 'pool_ng_t5_042',
-  poolRank: 12, walletBalance: 4200,
-  computeCredits: 120, powerUnits: 120, minedNvt: 65.5000,
-  serverModel: 'Echo High-Throughput Server (v5.0)', isGraduate: false,
-};
-
-export const MOCK_USER_US = {
-  id: 'usr_us_001', name: 'Marcus J. Reid', email: 'm.reid@nodevault.io',
-  phone: '+1 (312) 555-0194', referralCode: 'NV-MJR-9K4P', region: 'US',
-  tier: TIER_DATA_US[2], tierId: 3, entryFee: 4, cumulativeGifts: 0.80,
-  joinDate: '2026-09-20', status: 'active', subNodes: 3,
-  totalEarned: 0.80, poolId: 'pool_us_t3_011',
-  poolRank: 7, walletBalance: 0.80,
-  computeCredits: 40, powerUnits: 40, minedNvt: 12.0000,
-  serverModel: 'Alpha Dedicated Server (v3.0)', isGraduate: false,
-};
-
-const POOL_FOUNDERS = [
-  'Genesis Alpha', 'Prime Validator', 'Vault Guardian', 'Node Oracle',
-  'Yield Sentinel', 'Capital Nexus', 'Chain Warden', 'Protocol Sage',
-];
-
-// ── Build mock pools respecting single-group rule ──
-function buildMockPools(tierData) {
-  return tierData.map((tier, idx) => {
-    const isSingleGroup = tier.singleGroup;
-    const poolCount     = isSingleGroup ? 1 : 6;
-
-    const pools = Array.from({ length: poolCount }, (_, i) => ({
-      id:         `pool_t${tier.id}_${String(i + 1).padStart(3, '0')}`,
-      name:       isSingleGroup
-                    ? `${tier.name} — Global Pool`
-                    : `${tier.name} Pool #${String(i + 1).padStart(2, '0')}`,
-      founder:    POOL_FOUNDERS[i % POOL_FOUNDERS.length],
-      bidAmount:  isSingleGroup ? null : Math.round((idx + 1) * (6 - i) * 8500),
-      members:    Math.floor(15 + Math.random() * 85),
-      maxMembers: 100,
-      apy:        (14 + idx * 0.35).toFixed(2),
-      featured:   !isSingleGroup && i < 2,
-      isSingleGroup,
-      // Single-group pools have no bidding, no leaderboard ranking
-      biddingEnabled: !isSingleGroup,
-    }));
-
-    return {
-      tierId:        tier.id,
-      tierName:      tier.name,
-      tierFee:       tier.fee,
-      tierColor:     tier.color,
-      tierCategory:  tier.category,
-      maxPools:      tier.maxPools,
-      singleGroup:   isSingleGroup,
-      pools:         isSingleGroup ? pools : pools.sort((a, b) => b.bidAmount - a.bidAmount),
-    };
-  });
-}
-
-export const MOCK_POOLS_NG = buildMockPools(TIER_DATA_NG);
-export const MOCK_POOLS_US = buildMockPools(TIER_DATA_US);
-
-// ── Mock referral tree ──
-export const MOCK_TREE = {
-  id: 'self', name: 'You', tierId: 5, status: 'active',
-  children: [
-    { id: 'n1', name: 'Amaka E.',   tierId: 5, status: 'active',
-      children: [
-        { id: 'n1a', name: 'Bello K.',  tierId: 3, status: 'active',  children: [] },
-        { id: 'n1b', name: 'Funmi O.',  tierId: 2, status: 'pending', children: [] },
-      ],
-    },
-    { id: 'n2', name: 'Dayo M.',    tierId: 4, status: 'active',
-      children: [{ id: 'n2a', name: 'Ngozi P.', tierId: 5, status: 'active', children: [] }],
-    },
-    { id: 'n3', name: 'Ifeanyi U.', tierId: 2, status: 'pending', children: [] },
-    { id: 'n4', name: 'Chinwe S.',  tierId: 3, status: 'active',  children: [] },
-    { id: 'n5', name: 'Emeka R.',   tierId: 1, status: 'pending', children: [] },
-  ],
-};
+export const MOCK_USER_NG = null;
+export const MOCK_USER_US = null;
+export const MOCK_POOLS_NG = [];
+export const MOCK_POOLS_US = [];
+export const MOCK_TREE = null;
 
 export const PLATFORM_STATS = REGIONS.NG.platformStats;

@@ -155,6 +155,11 @@ export default function Tiers() {
       setGateModal({ type: 'auth', tier: checkoutTier });
       return;
     }
+    if (user.kycStatus !== 'verified') {
+      setCheckoutTier(null);
+      setGateModal({ type: 'kyc', tier: checkoutTier });
+      return;
+    }
     setIsStaking(true);
 
     try {
@@ -491,7 +496,7 @@ export default function Tiers() {
               <div style={{ marginBottom: '0.75rem' }}><IconReceipt /></div>
               <h4 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>Transparent Fee Architecture</h4>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                Itemized receipts show Staking Principal, 5% OPEX, 3% Gateway, and 7.5% VAT on fees only. ₦50 CBN EMTL on transfers ≥ ₦10,000.
+                Itemized receipts show Staking Principal, 7.5% Inbound OPEX, 3% Gateway, and 7.5% VAT on fees only. ₦50 CBN EMTL on transfers ≥ ₦10,000. Rate schedules are dynamically governed in the Protocol Admin Console.
               </p>
             </div>
             <div className="card" style={{ padding: '1.5rem' }}>
@@ -589,26 +594,10 @@ export default function Tiers() {
                   </div>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem' }}>KYC Verification Required</h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.75rem' }}>
-                    In compliance with statutory AML directives, KYC verification must be completed before you are allowed to stake on a node. Once submitted, your validator account is approved for staking.
+                    In compliance with statutory AML directives, identity verification (NIN, BVN, or Driver's License) must be completed and approved before you are authorized to stake on a node.
                   </p>
                   <button className="btn btn-primary btn-full" onClick={() => { setGateModal(null); navigate('/kyc'); }}>
-                    Start Instant KYC Verification →
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-full"
-                    style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}
-                    onClick={async () => {
-                      if (user?.id) {
-                        await dbKYC.simulateApproval(user.id, 'verified');
-                        updateUserProfile({ kycStatus: 'verified' });
-                        const tier = gateModal.tier;
-                        setGateModal(null);
-                        setSelectedTier(tier);
-                        setCheckoutTier(tier);
-                      }
-                    }}
-                  >
-                    ⚡ Fast-Track KYC Verification (Instant Pass)
+                    Complete KYC Verification →
                   </button>
                 </>
               )}

@@ -3,10 +3,6 @@ import {
   REGIONS,
   TIER_DATA_NG,
   TIER_DATA_US,
-  MOCK_USER_NG,
-  MOCK_USER_US,
-  MOCK_POOLS_NG,
-  MOCK_POOLS_US,
   buildTierData,
   formatProjected,
   toNVT,
@@ -133,8 +129,8 @@ export default function AppContext({ children }) {
     cap: tierData.length > 0 ? tierData[tierData.length - 1].fee : 2560000,
   }), [tierData]);
 
-  const pools    = MOCK_POOLS_NG;
-  const mockUser = MOCK_USER_NG;
+  const pools    = [];
+  const mockUser = null;
 
   const selectRegion = () => {}; // Strictly NGN supported
 

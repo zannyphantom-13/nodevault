@@ -58,6 +58,25 @@ export default function Admin() {
   const [securityPolicies, setSecurityPolicies] = useState(() => dbAdmin.getSecurityPolicies());
   const [timeLimitedPasscodes, setTimeLimitedPasscodes] = useState([]);
 
+  // OPEX & VAT Protocol Rates State
+  const [protocolFees, setProtocolFees] = useState(() => dbAdmin.getProtocolFees());
+  const [draftInboundOpex, setDraftInboundOpex] = useState(() => {
+    const f = dbAdmin.getProtocolFees();
+    return (f.inboundOpexRate * 100).toFixed(1);
+  });
+  const [draftOutboundOpex, setDraftOutboundOpex] = useState(() => {
+    const f = dbAdmin.getProtocolFees();
+    return (f.outboundOpexRate * 100).toFixed(1);
+  });
+  const [draftInboundVat, setDraftInboundVat] = useState(() => {
+    const f = dbAdmin.getProtocolFees();
+    return (f.inboundVatRate * 100).toFixed(1);
+  });
+  const [draftOutboundVat, setDraftOutboundVat] = useState(() => {
+    const f = dbAdmin.getProtocolFees();
+    return (f.outboundVatRate * 100).toFixed(1);
+  });
+
   // Toast Notifications
   const [actionSuccessToast, setActionSuccessToast] = useState('');
 
@@ -185,6 +204,12 @@ export default function Admin() {
       setAuditLogs(dbAdmin.getAuditLogs());
       setSecurityPolicies(dbAdmin.getSecurityPolicies());
       setTimeLimitedPasscodes(dbAdmin.getTimeLimitedPasscodes());
+      const fees = dbAdmin.getProtocolFees();
+      setProtocolFees(fees);
+      setDraftInboundOpex((fees.inboundOpexRate * 100).toFixed(1));
+      setDraftOutboundOpex((fees.outboundOpexRate * 100).toFixed(1));
+      setDraftInboundVat((fees.inboundVatRate * 100).toFixed(1));
+      setDraftOutboundVat((fees.outboundVatRate * 100).toFixed(1));
     } catch (err) {
       console.warn('Admin load error:', err);
     } finally {
@@ -865,6 +890,67 @@ export default function Admin() {
     refreshDbStatus();
   };
 
+  // OPEX & VAT Protocol Rates Save Action
+  const handleSaveProtocolFees = () => {
+    const inOpexNum = parseFloat(draftInboundOpex);
+    const outOpexNum = parseFloat(draftOutboundOpex);
+    const inVatNum = parseFloat(draftInboundVat);
+    const outVatNum = parseFloat(draftOutboundVat);
+
+    if (isNaN(inOpexNum) || inOpexNum < 0 || inOpexNum > 50) {
+      alert('Inbound OPEX must be a valid percentage between 0% and 50%');
+      return;
+    }
+    if (isNaN(outOpexNum) || outOpexNum < 0 || outOpexNum > 50) {
+      alert('Outbound OPEX must be a valid percentage between 0% and 50%');
+      return;
+    }
+    if (isNaN(inVatNum) || inVatNum < 0 || inVatNum > 50) {
+      alert('Inbound VAT must be a valid percentage between 0% and 50%');
+      return;
+    }
+    if (isNaN(outVatNum) || outVatNum < 0 || outVatNum > 50) {
+      alert('Outbound VAT must be a valid percentage between 0% and 50%');
+      return;
+    }
+
+    triggerSecurityAction({
+      title: 'CONFIRM: UPDATE OPEX & VAT PROTOCOL RATES',
+      actionType: 'PROTOCOL_FEES_UPDATE',
+      permissionKey: 'fees.write',
+      target: 'Protocol Fee Schedule',
+      exactChange: {
+        'Inbound OPEX': `${(protocolFees.inboundOpexRate * 100).toFixed(1)}% → ${inOpexNum.toFixed(1)}%`,
+        'Outbound OPEX': `${(protocolFees.outboundOpexRate * 100).toFixed(1)}% → ${outOpexNum.toFixed(1)}%`,
+        'Inbound VAT': `${(protocolFees.inboundVatRate * 100).toFixed(1)}% → ${inVatNum.toFixed(1)}%`,
+        'Outbound VAT': `${(protocolFees.outboundVatRate * 100).toFixed(1)}% → ${outVatNum.toFixed(1)}%`,
+      },
+      effectSummary: [
+        `Inbound OPEX fee will become ${inOpexNum.toFixed(1)}% applied to all new node staking checkouts.`,
+        `Outbound OPEX deduction will become ${outOpexNum.toFixed(1)}% deducted from monthly dividends & capital refunds.`,
+        `Statutory VAT rates will become ${inVatNum.toFixed(1)}% (inbound) and ${outVatNum.toFixed(1)}% (outbound) applied strictly to service fees.`,
+        'All client calculation engines will immediately recalculate checkouts and disbursements using these new rates.',
+        'This modification is permanently recorded in the immutable System Audit Log.'
+      ],
+      onConfirm: async () => {
+        await dbAdmin.updateProtocolFees({
+          inboundOpexRate: inOpexNum / 100,
+          outboundOpexRate: outOpexNum / 100,
+          inboundVatRate: inVatNum / 100,
+          outboundVatRate: outVatNum / 100,
+          adminName: user?.name || 'Compliance Officer (Admin)',
+          adminEmail: user?.email || 'admin@nodevault.io'
+        });
+        const updated = dbAdmin.getProtocolFees();
+        setProtocolFees(updated);
+        setDraftInboundOpex((updated.inboundOpexRate * 100).toFixed(1));
+        setDraftOutboundOpex((updated.outboundOpexRate * 100).toFixed(1));
+        setDraftInboundVat((updated.inboundVatRate * 100).toFixed(1));
+        setDraftOutboundVat((updated.outboundVatRate * 100).toFixed(1));
+      }
+    });
+  };
+
   // Export Audit Logs as JSON
   const handleExportAuditLogs = () => {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(auditLogs, null, 2));
@@ -1110,6 +1196,15 @@ export default function Admin() {
             onClick={() => setActiveTab('database_vault')}
           >
             <span>🗄️ Database Vault</span>
+          </button>
+          <button
+            className={`admin-tab-btn ${activeTab === 'fees' ? 'active' : ''}`}
+            onClick={() => setActiveTab('fees')}
+          >
+            <span>💸 OPEX & VAT Controls</span>
+            <span className="admin-tab-pill" style={{ background: '#38bdf8', color: '#000' }}>
+              {(protocolFees?.inboundOpexRate * 100).toFixed(1)}% / {(protocolFees?.outboundOpexRate * 100).toFixed(1)}%
+            </span>
           </button>
         </div>
 
@@ -2344,6 +2439,328 @@ export default function Admin() {
                 {dbTestResult.message || (dbTestResult.success ? 'Connected successfully to Supabase cluster.' : 'Connection test failed.')}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════
+            TAB 11: OPEX & VAT PROTOCOL RATES CONTROLS
+        ════════════════════════════════════════════════════════════ */}
+        {activeTab === 'fees' && (
+          <div>
+            <div className="admin-card" style={{ marginBottom: '1.5rem' }}>
+              <div className="admin-card-header">
+                <div>
+                  <h3 className="admin-card-title">💸 Statutory OPEX & VAT Protocol Rates</h3>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                    Centralized economic policy engine governing inbound staking fees, outbound payout deductions, and statutory VAT.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                    Last Updated: {protocolFees?.lastUpdated ? new Date(protocolFees.lastUpdated).toLocaleString() : 'System Default'}
+                  </span>
+                  <span className="admin-tab-pill" style={{ background: '#38bdf8', color: '#000' }}>
+                    Active Policy
+                  </span>
+                </div>
+              </div>
+
+              {/* Rate Adjustment Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                {/* 1. Inbound OPEX */}
+                <div style={{ background: 'rgba(0,0,0,0.35)', padding: '1.25rem', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8' }}>
+                      📥 Inbound OPEX Rate
+                    </label>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 800, color: '#38bdf8' }}>
+                      {draftInboundOpex}%
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.75rem' }}>
+                    Levied on new node registrations and tier staking purchases.
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="30"
+                    value={draftInboundOpex}
+                    onChange={(e) => setDraftInboundOpex(e.target.value)}
+                    className="admin-form-input"
+                    style={{ width: '100%', fontSize: '1rem', fontWeight: 700 }}
+                  />
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.4rem' }}>
+                    Current Active: {(protocolFees.inboundOpexRate * 100).toFixed(1)}% (Default: 7.5%)
+                  </div>
+                </div>
+
+                {/* 2. Outbound OPEX */}
+                <div style={{ background: 'rgba(0,0,0,0.35)', padding: '1.25rem', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#00ff94' }}>
+                      📤 Outbound OPEX Rate
+                    </label>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 800, color: '#00ff94' }}>
+                      {draftOutboundOpex}%
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.75rem' }}>
+                    Deducted from validator monthly yields and capital refunds.
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="30"
+                    value={draftOutboundOpex}
+                    onChange={(e) => setDraftOutboundOpex(e.target.value)}
+                    className="admin-form-input"
+                    style={{ width: '100%', fontSize: '1rem', fontWeight: 700 }}
+                  />
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.4rem' }}>
+                    Current Active: {(protocolFees.outboundOpexRate * 100).toFixed(1)}% (Default: 3.5%)
+                  </div>
+                </div>
+
+                {/* 3. Inbound VAT */}
+                <div style={{ background: 'rgba(0,0,0,0.35)', padding: '1.25rem', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#facc15' }}>
+                      🏛️ Inbound VAT Rate
+                    </label>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 800, color: '#facc15' }}>
+                      {draftInboundVat}%
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.75rem' }}>
+                    Statutory VAT applied exclusively to inbound service fees (OPEX + Gateway).
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="25"
+                    value={draftInboundVat}
+                    onChange={(e) => setDraftInboundVat(e.target.value)}
+                    className="admin-form-input"
+                    style={{ width: '100%', fontSize: '1rem', fontWeight: 700 }}
+                  />
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.4rem' }}>
+                    Current Active: {(protocolFees.inboundVatRate * 100).toFixed(1)}% (Default: 7.5%)
+                  </div>
+                </div>
+
+                {/* 4. Outbound VAT */}
+                <div style={{ background: 'rgba(0,0,0,0.35)', padding: '1.25rem', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f97316' }}>
+                      🏛️ Outbound VAT Rate
+                    </label>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 800, color: '#f97316' }}>
+                      {draftOutboundVat}%
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.75rem' }}>
+                    Statutory VAT applied exclusively to outbound service fee deduction.
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="25"
+                    value={draftOutboundVat}
+                    onChange={(e) => setDraftOutboundVat(e.target.value)}
+                    className="admin-form-input"
+                    style={{ width: '100%', fontSize: '1rem', fontWeight: 700 }}
+                  />
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.4rem' }}>
+                    Current Active: {(protocolFees.outboundVatRate * 100).toFixed(1)}% (Default: 7.5%)
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.25rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setDraftInboundOpex('7.5');
+                      setDraftOutboundOpex('3.5');
+                      setDraftInboundVat('7.5');
+                      setDraftOutboundVat('7.5');
+                    }}
+                  >
+                    Reset to Default Statutory (7.5% / 3.5%)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setDraftInboundOpex('5.0');
+                      setDraftOutboundOpex('3.0');
+                      setDraftInboundVat('7.5');
+                      setDraftOutboundVat('7.5');
+                    }}
+                  >
+                    Subsidized Growth Mode (5.0% / 3.0%)
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveProtocolFees}
+                >
+                  🔒 Save & Deploy Protocol Rates (Requires Dual-Auth)
+                </button>
+              </div>
+            </div>
+
+            {/* Live Calculation Preview Boxes */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+              {/* Simulation A: Inbound Staking (₦100,000) */}
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '1rem', color: '#38bdf8' }}>📥 Inbound Staking Simulation (₦100,000 Stake)</h4>
+                    <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Preview of itemized checkout billed to validator at checkout</div>
+                  </div>
+                  <span className="badge" style={{ background: 'rgba(56,189,248,0.15)', color: '#38bdf8' }}>Checkout Engine</span>
+                </div>
+                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: 8, fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>Validator Principal Staked:</span>
+                    <strong style={{ color: '#fff' }}>₦100,000.00</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>Inbound OPEX ({draftInboundOpex}%):</span>
+                    <strong style={{ color: '#38bdf8' }}>+₦{(100000 * (parseFloat(draftInboundOpex) || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>Gateway Pass-Through Markup (3.0%):</span>
+                    <strong style={{ color: '#94a3b8' }}>+₦3,000.00</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>Statutory VAT ({draftInboundVat}% on OPEX+Gateway):</span>
+                    <strong style={{ color: '#facc15' }}>+₦{(((100000 * (parseFloat(draftInboundOpex) || 0) / 100) + 3000) * ((parseFloat(draftInboundVat) || 0) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>CBN Electronic Money Transfer Levy (EMTL):</span>
+                    <strong style={{ color: '#94a3b8' }}>+₦50.00</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0 0.2rem', marginTop: '0.4rem', borderTop: '2px solid rgba(56,189,248,0.3)', fontSize: '0.95rem' }}>
+                    <span style={{ color: '#fff', fontWeight: 800 }}>Total Charged to Validator:</span>
+                    <strong style={{ color: '#00ff94', fontSize: '1.05rem' }}>
+                      ₦{(
+                        100000 +
+                        (100000 * (parseFloat(draftInboundOpex) || 0) / 100) +
+                        3000 +
+                        (((100000 * (parseFloat(draftInboundOpex) || 0) / 100) + 3000) * ((parseFloat(draftInboundVat) || 0) / 100)) +
+                        50
+                      ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Simulation B: Outbound Payout (₦100,000) */}
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '1rem', color: '#00ff94' }}>📤 Outbound Payout Simulation (₦100,000 Claim)</h4>
+                    <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Preview of statutory deduction applied to dividend or refund disbursements</div>
+                  </div>
+                  <span className="badge" style={{ background: 'rgba(0,255,148,0.15)', color: '#00ff94' }}>Disbursement Engine</span>
+                </div>
+                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: 8, fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>Gross Claim / Dividend Requested:</span>
+                    <strong style={{ color: '#fff' }}>₦100,000.00</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>Outbound OPEX ({draftOutboundOpex}%):</span>
+                    <strong style={{ color: '#ef4444' }}>-₦{(100000 * (parseFloat(draftOutboundOpex) || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>Statutory VAT ({draftOutboundVat}% on OPEX Fee):</span>
+                    <strong style={{ color: '#ef4444' }}>-₦{((100000 * (parseFloat(draftOutboundOpex) || 0) / 100) * ((parseFloat(draftOutboundVat) || 0) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#94a3b8' }}>CBN Electronic Transfer Levy (EMTL):</span>
+                    <strong style={{ color: '#ef4444' }}>-₦50.00</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0 0.2rem', marginTop: '0.4rem', borderTop: '2px solid rgba(0,255,148,0.3)', fontSize: '0.95rem' }}>
+                    <span style={{ color: '#fff', fontWeight: 800 }}>Net Disbursed to Bank Account:</span>
+                    <strong style={{ color: '#38bdf8', fontSize: '1.05rem' }}>
+                      ₦{Math.max(0, (
+                        100000 -
+                        (100000 * (parseFloat(draftOutboundOpex) || 0) / 100) -
+                        ((100000 * (parseFloat(draftOutboundOpex) || 0) / 100) * ((parseFloat(draftOutboundVat) || 0) / 100)) -
+                        50
+                      )).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Audit Log for Fees */}
+            <div className="admin-card">
+              <div className="admin-card-header">
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1rem' }}>📜 Fee Modification Audit Trail</h4>
+                  <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Cryptographically signed administrative changes to protocol fee schedules</div>
+                </div>
+              </div>
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Timestamp</th>
+                      <th>Action</th>
+                      <th>Admin</th>
+                      <th>Details</th>
+                      <th>Impact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.filter(l => l.category === 'FEES').length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                          No fee policy modifications recorded in audit store.
+                        </td>
+                      </tr>
+                    ) : (
+                      auditLogs.filter(l => l.category === 'FEES').map(log => (
+                        <tr key={log.id}>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
+                            {new Date(log.timestamp).toLocaleString()}
+                          </td>
+                          <td>
+                            <span className="badge" style={{ background: '#38bdf820', color: '#38bdf8' }}>
+                              {log.action}
+                            </span>
+                          </td>
+                          <td>
+                            <strong>{log.adminName}</strong>
+                            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{log.adminEmail}</div>
+                          </td>
+                          <td style={{ fontSize: '0.82rem' }}>{log.details}</td>
+                          <td>
+                            <span className="badge" style={{ background: 'rgba(239,68,68,0.2)', color: '#ef4444' }}>
+                              {log.impact || 'CRITICAL'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { TIER_DATA_NG, REGIONS, formatNaira, formatNairaCompact } from '../data/platform';
+import { dbAdmin } from '../services/db';
 import {
   IconNodeCube,
   IconShieldNIBSS,

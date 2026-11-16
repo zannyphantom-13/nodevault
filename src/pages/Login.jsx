@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import './Login.css';
@@ -65,22 +65,6 @@ export default function Login() {
       setLoading(false);
     }
   };
-
-  const handleQuickLogin = async (demoUser) => {
-    setError('');
-    setLoading(true);
-    try {
-      const user = await dbAuth.login(demoUser.email, demoUser.password || 'password123');
-      login(user);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.message || 'Demo login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const demoUsers = dbAuth.getDemoUsers();
 
   return (
     <div className="login-page">
@@ -163,7 +147,7 @@ export default function Login() {
                 id="login-email"
                 type="text"
                 className="login-input"
-                placeholder="e.g. c.obi@nodevault.io or +234 816..."
+                placeholder="e.g. name@example.com or +234 816..."
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 autoComplete="username"
@@ -226,33 +210,6 @@ export default function Login() {
             {loading ? 'Authenticating...' : 'Sign In to Node'}
           </button>
         </form>
-
-        {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === 'true' && (
-          <>
-            <div className="login-divider">or quick 1-click login (Demo Mode)</div>
-            <div className="demo-login-grid">
-              {demoUsers.slice(0, 3).map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  className="demo-login-btn"
-                  onClick={() => handleQuickLogin(u)}
-                  title={`Login as ${u.name}`}
-                >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <strong style={{ color: '#fff' }}>{u.name}</strong>
-                    </div>
-                    <div style={{ color: '#94a3b8', fontSize: '0.74rem' }}>
-                      {u.email} â€¢ {u.tierName || 'Node'}
-                    </div>
-                  </div>
-                  <span style={{ color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600 }}>Login â†’</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
 
         <div className="login-footer">
           Don't have an account?{' '}

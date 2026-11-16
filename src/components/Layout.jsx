@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import NotificationCenter from './NotificationCenter';
@@ -59,11 +59,9 @@ export default function Layout() {
           <div className="ticker-track">
             <span className="ticker-item"><span className="pulse-dot" /> <strong>MAINNET ONLINE</strong></span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item"><strong className="ticker-cyan">{sovereignRate?.customerAPY || '12.7'}%</strong> SOVEREIGN APY (CBN 364D BENCHMARK)</span>
+            <span className="ticker-item"><strong className="ticker-cyan">~{sovereignRate?.customerAPY || '—'}%</strong> EST. SOVEREIGN APY (CBN 364D)</span>
             <span className="ticker-sep">/</span>
             <span className="ticker-item">STATUTORY POLICY: <strong className="ticker-green">100% PRINCIPAL DISBURSEMENT</strong></span>
-            <span className="ticker-sep">/</span>
-            <span className="ticker-item">AFFILIATE PROGRAM: <strong className="ticker-cyan">15 NVT ONE-TIME · 1 NVT/YR MAINLINE · 0.1 NVT/YR DOWNLINE</strong></span>
             <span className="ticker-sep">/</span>
             <span className="ticker-item">SETTLEMENT: <strong className="ticker-indigo">INSTANT NIBSS CLEARING (₦ NGN)</strong></span>
             <span className="ticker-sep">/</span>
@@ -71,11 +69,10 @@ export default function Layout() {
             <span className="ticker-sep">/</span>
             <span className="ticker-item"><span className="pulse-dot" /> <strong>MAINNET ONLINE</strong></span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item"><strong className="ticker-cyan">{sovereignRate?.customerAPY || '12.7'}%</strong> SOVEREIGN APY (CBN 364D BENCHMARK)</span>
+            <span className="ticker-item"><strong className="ticker-cyan">~{sovereignRate?.customerAPY || '—'}%</strong> EST. SOVEREIGN APY (CBN 364D)</span>
             <span className="ticker-sep">/</span>
             <span className="ticker-item">STATUTORY POLICY: <strong className="ticker-green">100% PRINCIPAL DISBURSEMENT</strong></span>
-            <span className="ticker-sep">/</span>
-            <span className="ticker-item">MAX YEARLY CAP: <strong className="ticker-cyan">1000% MAINLINE · 1200% DOWNLINE</strong></span>
+
           </div>
         </div>
       </div>

@@ -139,23 +139,6 @@ export default function KYC() {
     }
   };
 
-  const handleSimulateApproval = async () => {
-    setLoading(true);
-    await dbKYC.simulateApproval(user.id, 'verified');
-    updateUserProfile({ kycStatus: 'verified' });
-    setRecord(prev => ({ ...prev, status: 'verified', reviewedAt: new Date().toISOString() }));
-    setLoading(false);
-  };
-
-  const handleSimulateReset = async () => {
-    setLoading(true);
-    await dbKYC.simulateApproval(user.id, 'unverified');
-    updateUserProfile({ kycStatus: 'unverified' });
-    setRecord(null);
-    setStep(1);
-    setLoading(false);
-  };
-
   if (!user) {
     return (
       <div className="kyc-page" style={{ textAlign: 'center', paddingTop: '5rem' }}>
@@ -545,34 +528,6 @@ export default function KYC() {
               </div>
             </div>
           )}
-
-          {/* ══ DEMO SANDBOX TOOLBAR ══ */}
-          <div className="kyc-demo-box">
-            <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#00e5ff' }}>
-                🛠️ Sandbox Simulator Tool
-              </div>
-              <div style={{ fontSize: '0.76rem', color: '#94a3b8' }}>
-                Test immediate compliance approval or reset state for testing.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={handleSimulateReset}
-              >
-                Reset to Unverified
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={handleSimulateApproval}
-              >
-                ⚡ Instant Approve (Verified)
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

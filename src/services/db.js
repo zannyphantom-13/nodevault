@@ -23,6 +23,17 @@ const STORAGE_KEYS = {
   SECURITY_POLICIES: 'nodevault_security_policies',
   TIME_LIMITED_PASSCODES: 'nodevault_time_limited_passcodes',
   UNCONFIRMED: 'nodevault_unconfirmed_registrations',
+  PROTOCOL_FEES: 'nodevault_protocol_fees',
+};
+
+// Default platform fee schedule (7.5% inbound OPEX, 3.5% outbound OPEX, 7.5% inbound/outbound VAT)
+export const DEFAULT_PROTOCOL_FEES = {
+  inboundOpexRate: 0.075,   // 7.5% Inbound OPEX
+  outboundOpexRate: 0.035,  // 3.5% Outbound OPEX
+  inboundVatRate: 0.075,    // 7.5% Inbound VAT
+  outboundVatRate: 0.075,   // 7.5% Outbound VAT
+  lastUpdated: new Date().toISOString(),
+  updatedBy: 'Statutory Default Policy'
 };
 
 // Retrieve configured Supabase credentials (environment or user-input)
@@ -101,77 +112,6 @@ function ensureValidUUID(id) {
 
 const DEFAULT_USERS = [
   {
-    id: 'd0000000-0000-0000-0000-000000000001',
-    email: 'c.obi@nodevault.io',
-    password: 'password123',
-    name: 'Chukwuemeka Obi',
-    phone: '+234 816 592 9400',
-    referralCode: 'NV-OBI-7X2K',
-    region: 'NG',
-    tierId: 5,
-    tierName: 'Echo Node',
-    entryFee: 21000,
-    walletBalance: 4200,
-    cumulativeGifts: 4200,
-    subNodes: 5,
-    kycStatus: 'verified',
-    computeCredits: 120,
-    powerUnits: 120,
-    minedNvt: 65.5000,
-    serverModel: 'Echo High-Throughput Server (v5.0)',
-    isGraduate: false,
-    stakedTierIds: [1, 3, 5],
-    graduatedTierIds: [],
-    joinDate: '2026-09-12',
-  },
-  {
-    id: 'd0000000-0000-0000-0000-000000000002',
-    email: 'm.reid@nodevault.io',
-    password: 'password123',
-    name: 'Marcus J. Reid',
-    phone: '+1 (312) 555-0194',
-    referralCode: 'NV-MJR-9K4P',
-    region: 'US',
-    tierId: 3,
-    tierName: 'Alpha Node',
-    entryFee: 4,
-    walletBalance: 0.80,
-    cumulativeGifts: 0.80,
-    subNodes: 3,
-    kycStatus: 'pending',
-    computeCredits: 40,
-    powerUnits: 40,
-    minedNvt: 12.0000,
-    serverModel: 'Alpha Dedicated Server (v3.0)',
-    isGraduate: false,
-    joinDate: '2026-09-20',
-  },
-  {
-    id: 'd0000000-0000-0000-0000-000000000003',
-    email: 'test@nodevault.io',
-    password: 'password123',
-    name: 'Tunde Adebayo',
-    phone: '+234 803 123 4567',
-    referralCode: 'NV-TUNDE-1A',
-    region: 'NG',
-    tierId: 1,
-    tierName: 'Micro Node',
-    entryFee: 1000,
-    walletBalance: 0,
-    cumulativeGifts: 0,
-    subNodes: 0,
-    kycStatus: 'unverified',
-    role: 'user',
-    computeCredits: 10,
-    powerUnits: 10,
-    minedNvt: 0.0000,
-    serverModel: 'Micro Node Server (v1.0)',
-    isGraduate: false,
-    stakedTierIds: [1],
-    graduatedTierIds: [],
-    joinDate: '2026-10-10',
-  },
-  {
     id: '09ca1833-17fe-4904-97b5-ffea015dc359',
     email: 'hazytarzan12@gmail.com',
     password: 'Zannyboi@13',
@@ -184,7 +124,7 @@ const DEFAULT_USERS = [
     entryFee: 20000,
     walletBalance: 2800,
     cumulativeGifts: 2800,
-    subNodes: 4,
+    subNodes: 0,
     kycStatus: 'verified',
     computeCredits: 160,
     powerUnits: 160,
@@ -237,32 +177,35 @@ function setStored(key, val) {
   }
 }
 
-// Initialize seed data
+// Initialize seed data (strictly live data, mock records purged)
 export function ensureInitialData() {
-  const users = getStored(STORAGE_KEYS.USERS, null);
+  const mockUserIds = [
+    'd0000000-0000-0000-0000-000000000001',
+    'd0000000-0000-0000-0000-000000000002',
+    'd0000000-0000-0000-0000-000000000003',
+  ];
+  const mockEmails = ['c.obi@nodevault.io', 'm.reid@nodevault.io', 'test@nodevault.io'];
+
+  let users = getStored(STORAGE_KEYS.USERS, null);
   if (!users || users.length === 0) {
-    setStored(STORAGE_KEYS.USERS, DEFAULT_USERS);
+    users = [...DEFAULT_USERS];
+    setStored(STORAGE_KEYS.USERS, users);
   } else {
+    // Purge any legacy mock users
+    users = users.filter(u => !mockUserIds.includes(u.id) && !mockEmails.includes(u.email?.toLowerCase()));
+
     // Ensure admin user exists in users list
     if (!users.some(u => u.email === 'admin@nodevault.io')) {
-      users.push(DEFAULT_USERS[3]);
-      setStored(STORAGE_KEYS.USERS, users);
-    }
-    // Ensure primary user has multi-node staking array populated
-    const chidi = users.find(u => u.id === 'd0000000-0000-0000-0000-000000000001');
-    if (chidi && (!chidi.stakedTierIds || chidi.stakedTierIds.length <= 1)) {
-      chidi.stakedTierIds = [1, 3, 5];
-      chidi.entryFee = 21000;
-      setStored(STORAGE_KEYS.USERS, users);
+      const adminDefault = DEFAULT_USERS.find(u => u.email === 'admin@nodevault.io');
+      if (adminDefault) users.push(adminDefault);
     }
 
-    // Ensure Azeez Hassan (hazytarzan12@gmail.com) exists with multi-node staking [3, 5] and ₦20,000 stake
+    // Ensure Azeez Hassan (hazytarzan12@gmail.com) exists with clean validator profile
     let azeez = users.find(u => u.email === 'hazytarzan12@gmail.com' || u.id === '09ca1833-17fe-4904-97b5-ffea015dc359');
     if (!azeez) {
       azeez = DEFAULT_USERS.find(u => u.email === 'hazytarzan12@gmail.com');
       if (azeez) {
         users.push(azeez);
-        setStored(STORAGE_KEYS.USERS, users);
       }
     } else {
       azeez.stakedTierIds = [3, 5];
@@ -271,69 +214,20 @@ export function ensureInitialData() {
       azeez.entryFee = 20000;
       azeez.serverModel = 'Echo High-Throughput Server (v5.0)';
       azeez.kycStatus = 'verified';
-      setStored(STORAGE_KEYS.USERS, users);
     }
+    setStored(STORAGE_KEYS.USERS, users);
 
+    // If active session belongs to a purged mock user, clear session
     const current = getStored(STORAGE_KEYS.CURRENT_USER, null);
-    if (current && current.id === 'd0000000-0000-0000-0000-000000000001' && (!current.stakedTierIds || current.stakedTierIds.length <= 1)) {
-      current.stakedTierIds = [1, 3, 5];
-      current.entryFee = 21000;
-      setStored(STORAGE_KEYS.CURRENT_USER, current);
-    } else if (current && (current.id === '09ca1833-17fe-4904-97b5-ffea015dc359' || current.email === 'hazytarzan12@gmail.com')) {
-      current.stakedTierIds = [3, 5];
-      current.entryFee = 20000;
-      current.tierId = 5;
-      current.tierName = 'Echo Node';
-      current.serverModel = 'Echo High-Throughput Server (v5.0)';
-      current.kycStatus = 'verified';
-      setStored(STORAGE_KEYS.CURRENT_USER, current);
+    if (current && (mockUserIds.includes(current.id) || mockEmails.includes(current.email?.toLowerCase()))) {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     }
   }
 
-  const kyc = getStored(STORAGE_KEYS.KYC, null);
-  if (!kyc) {
-    setStored(STORAGE_KEYS.KYC, [
-      {
-        userId: 'd0000000-0000-0000-0000-000000000001',
-        idType: 'nin',
-        idNumber: '11928374821',
-        dob: '1992-05-14',
-        address: '14 Admiralty Way, Lekki Phase 1, Lagos',
-        state: 'Lagos',
-        country: 'Nigeria',
-        status: 'verified',
-        reviewedAt: '2026-09-13T10:00:00Z',
-        idFrontUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=300&q=80',
-        selfieUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        userId: '09ca1833-17fe-4904-97b5-ffea015dc359',
-        idType: 'nin',
-        idNumber: '91543020521',
-        dob: '1995-08-19',
-        address: 'Plot 12, Lekki Epe Expressway, Lagos',
-        state: 'Lagos',
-        country: 'Nigeria',
-        status: 'verified',
-        reviewedAt: '2026-10-14T10:00:00Z',
-        idFrontUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=300&q=80',
-        selfieUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        userId: 'd0000000-0000-0000-0000-000000000002',
-        idType: 'passport',
-        idNumber: 'P892019482',
-        dob: '1988-11-22',
-        address: '742 Evergreen Terrace, Chicago, IL',
-        state: 'Illinois',
-        country: 'United States',
-        status: 'pending',
-        reviewedAt: null,
-        idFrontUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=300&q=80',
-        selfieUrl: null,
-      }
-    ]);
-  } else if (!kyc.some(k => k.userId === '09ca1833-17fe-4904-97b5-ffea015dc359')) {
+  // Purge mock KYC entries
+  let kyc = getStored(STORAGE_KEYS.KYC, []);
+  kyc = kyc.filter(k => !mockUserIds.includes(k.userId));
+  if (!kyc.some(k => k.userId === '09ca1833-17fe-4904-97b5-ffea015dc359')) {
     kyc.push({
       userId: '09ca1833-17fe-4904-97b5-ffea015dc359',
       idType: 'nin',
@@ -344,37 +238,14 @@ export function ensureInitialData() {
       country: 'Nigeria',
       status: 'verified',
       reviewedAt: '2026-10-14T10:00:00Z',
-      idFrontUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=300&q=80',
-      selfieUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
     });
-    setStored(STORAGE_KEYS.KYC, kyc);
   }
+  setStored(STORAGE_KEYS.KYC, kyc);
 
-  const bank = getStored(STORAGE_KEYS.BANK, null);
-  if (!bank) {
-    setStored(STORAGE_KEYS.BANK, [
-      {
-        id: 'f0000000-0000-0000-0000-000000000001',
-        userId: 'd0000000-0000-0000-0000-000000000001',
-        bankName: 'Guaranty Trust Bank (GTBank)',
-        bankCode: '058',
-        accountNumber: '0123456789',
-        accountName: 'CHUKWUEMEKA OBI',
-        isPrimary: true,
-        verified: true,
-      },
-      {
-        id: 'c2ff8afa-0cc1-4dab-b9ab-f678ae8d8ae9',
-        userId: '09ca1833-17fe-4904-97b5-ffea015dc359',
-        bankName: 'OPay Digital Services',
-        bankCode: '999992',
-        accountNumber: '9154302052',
-        accountName: 'AZEEZ HASSAN',
-        isPrimary: true,
-        verified: true,
-      }
-    ]);
-  } else if (!bank.some(b => b.userId === '09ca1833-17fe-4904-97b5-ffea015dc359')) {
+  // Purge mock Bank accounts
+  let bank = getStored(STORAGE_KEYS.BANK, []);
+  bank = bank.filter(b => !mockUserIds.includes(b.userId));
+  if (!bank.some(b => b.userId === '09ca1833-17fe-4904-97b5-ffea015dc359')) {
     bank.push({
       id: 'c2ff8afa-0cc1-4dab-b9ab-f678ae8d8ae9',
       userId: '09ca1833-17fe-4904-97b5-ffea015dc359',
@@ -385,103 +256,19 @@ export function ensureInitialData() {
       isPrimary: true,
       verified: true,
     });
-    setStored(STORAGE_KEYS.BANK, bank);
   }
+  setStored(STORAGE_KEYS.BANK, bank);
 
-  const refunds = getStored(STORAGE_KEYS.REFUNDS, null);
-  if (!refunds) {
-    setStored(STORAGE_KEYS.REFUNDS, [
-      {
-        id: 'r0000000-0000-0000-0000-000000000001',
-        userId: 'd0000000-0000-0000-0000-000000000001',
-        userName: 'Chukwuemeka Obi',
-        userEmail: 'c.obi@nodevault.io',
-        userPhone: '+234 816 592 9400',
-        tierId: 5,
-        entryFee: 16000,
-        cumulativeGifts: 4200,
-        eligibilityTier: 'B',
-        grossRefund: 5400,
-        earlyPenalty: 0,
-        outboundFee: 162,
-        netPayout: 5238,
-        scheduledDate: '2026-10-31',
-        status: 'pending',
-        isHighValue: false,
-        createdAt: '2026-10-12T14:30:00Z',
-        bankDetails: {
-          bankName: 'Guaranty Trust Bank (GTBank)',
-          accountNumber: '0123456789',
-          accountName: 'CHUKWUEMEKA OBI'
-        }
-      },
-      {
-        id: 'r0000000-0000-0000-0000-000000000002',
-        userId: 'd0000000-0000-0000-0000-000000000002',
-        userName: 'Marcus J. Reid',
-        userEmail: 'm.reid@nodevault.io',
-        userPhone: '+1 (312) 555-0194',
-        tierId: 15,
-        entryFee: 3200000,
-        cumulativeGifts: 0,
-        eligibilityTier: 'A',
-        grossRefund: 2240000,
-        earlyPenalty: 0,
-        outboundFee: 67200,
-        netPayout: 2850000,
-        scheduledDate: '2026-10-31',
-        status: 'pending_audit',
-        isHighValue: true,
-        createdAt: '2026-10-13T09:15:00Z',
-        auditNotes: 'High-Value Multi-Sig Compliance Review required (> ₦2.5M statutory threshold)',
-        bankDetails: {
-          bankName: 'Zenith Bank PLC',
-          accountNumber: '2081928371',
-          accountName: 'MARCUS J. REID'
-        }
-      }
-    ]);
-  }
+  // Purge mock refunds
+  let refunds = getStored(STORAGE_KEYS.REFUNDS, []);
+  refunds = refunds.filter(r => !mockUserIds.includes(r.userId));
+  setStored(STORAGE_KEYS.REFUNDS, refunds);
 
-  const txs = getStored(STORAGE_KEYS.TXS, null);
-  if (!txs || txs.length === 0) {
-    setStored(STORAGE_KEYS.TXS, [
-      {
-        id: 't0000000-0000-0000-0000-000000000001',
-        userId: 'd0000000-0000-0000-0000-000000000001',
-        tierId: 5,
-        type: 'staking',
-        grossAmount: 16000,
-        netAmount: 17332,
-        gateway: 'paystack',
-        status: 'success',
-        reference: 'NV-STK-91823',
-        createdAt: '2026-09-12T11:00:00Z',
-      },
-      {
-        id: 't0000000-0000-0000-0000-000000000002',
-        userId: 'd0000000-0000-0000-0000-000000000001',
-        tierId: 3,
-        type: 'staking',
-        grossAmount: 4000,
-        netAmount: 4350,
-        gateway: 'flutterwave',
-        status: 'success',
-        reference: 'NV-STK-44912',
-        createdAt: '2026-09-11T14:20:00Z',
-      },
-      {
-        id: 't0000000-0000-0000-0000-000000000003',
-        userId: 'd0000000-0000-0000-0000-000000000001',
-        tierId: 1,
-        type: 'staking',
-        grossAmount: 1000,
-        netAmount: 1100,
-        gateway: 'monnify',
-        status: 'success',
-        reference: 'NV-STK-10291',
-        createdAt: '2026-09-10T09:00:00Z',
-      },
+  // Purge mock transactions
+  let txs = getStored(STORAGE_KEYS.TXS, []);
+  txs = txs.filter(t => !mockUserIds.includes(t.userId));
+  if (!txs.some(t => t.userId === '09ca1833-17fe-4904-97b5-ffea015dc359')) {
+    txs.push(
       {
         id: '439b1c9c-ef4b-4ce5-a1e0-ef82c633777d',
         userId: '09ca1833-17fe-4904-97b5-ffea015dc359',
@@ -500,39 +287,20 @@ export function ensureInitialData() {
         tierId: 3,
         type: 'staking',
         grossAmount: 4000,
-        netAmount: 4344,
+        netAmount: 4350,
         gateway: 'paystack',
         status: 'success',
-        reference: 'NV-STK-PX42NZS',
-        createdAt: '2026-10-22T13:25:23.975Z'
+        reference: 'NV-STK-9481234',
+        createdAt: '2026-10-20T10:11:22.000Z'
       }
-    ]);
-  } else if (!txs.some(t => t.userId === '09ca1833-17fe-4904-97b5-ffea015dc359' && t.tierId === 5)) {
-    txs.push({
-      id: '439b1c9c-ef4b-4ce5-a1e0-ef82c633777d',
-      userId: '09ca1833-17fe-4904-97b5-ffea015dc359',
-      tierId: 5,
-      type: 'staking',
-      grossAmount: 16000,
-      netAmount: 17426,
-      gateway: 'paystack',
-      status: 'success',
-      reference: 'NV-STK-OAV2CQ2',
-      createdAt: '2026-10-22T13:14:56.651Z'
-    });
-    txs.push({
-      id: 'a1eb4118-992c-441f-8390-680564e29bcf',
-      userId: '09ca1833-17fe-4904-97b5-ffea015dc359',
-      tierId: 3,
-      type: 'staking',
-      grossAmount: 4000,
-      netAmount: 4344,
-      gateway: 'paystack',
-      status: 'success',
-      reference: 'NV-STK-PX42NZS',
-      createdAt: '2026-10-22T13:25:23.975Z'
-    });
-    setStored(STORAGE_KEYS.TXS, txs);
+    );
+  }
+  setStored(STORAGE_KEYS.TXS, txs);
+
+  // Initialize Protocol Fee schedule if not present
+  const fees = getStored(STORAGE_KEYS.PROTOCOL_FEES, null);
+  if (!fees) {
+    setStored(STORAGE_KEYS.PROTOCOL_FEES, DEFAULT_PROTOCOL_FEES);
   }
 }
 
@@ -2102,81 +1870,35 @@ export const dbNetwork = {
     // Direct recruits (where referredBy matches user's referralCode)
     const directRecruits = users.filter(u => u.referredBy === userRefCode && u.id !== currentUser.id);
 
-    // Dynamic node list: either from direct registered users, or realistic active validators up to subNodes count
-    const totalRecordedSubNodes = Math.max(currentUser?.subNodes || 0, directRecruits.length);
-
-    const SAMPLE_NAMES = [
-      { name: 'Rotimi Bankole', code: 'NV-ROT-22', tier: 'Alpha Node', tierId: 3, fee: 4000, hashrate: 0.064 },
-      { name: 'Funke Oladipo', code: 'NV-FNK-33', tier: 'Echo Node', tierId: 5, fee: 16000, hashrate: 0.256 },
-      { name: 'Amaka Eze', code: 'NV-AMK-10', tier: 'Delta Node', tierId: 4, fee: 8000, hashrate: 0.128 },
-      { name: 'David Adeleke', code: 'NV-DAV-44', tier: 'Spark Node', tierId: 2, fee: 2000, hashrate: 0.032 },
-      { name: 'Ngozi Chukwu', code: 'NV-NGZ-55', tier: 'Micro Node', tierId: 1, fee: 1000, hashrate: 0.016 },
-      { name: 'Ibrahim Musa', code: 'NV-IBR-66', tier: 'Prime Node', tierId: 6, fee: 32000, hashrate: 0.512 },
-      { name: 'Blessing Okon', code: 'NV-BLS-77', tier: 'Sigma Node', tierId: 7, fee: 64000, hashrate: 1.024 },
-      { name: 'Emeka Nnamdi', code: 'NV-EMK-88', tier: 'Alpha Node', tierId: 3, fee: 4000, hashrate: 0.064 },
-      { name: 'Zainab Bello', code: 'NV-ZNB-99', tier: 'Delta Node', tierId: 4, fee: 8000, hashrate: 0.128 },
-      { name: 'Femi Alabi', code: 'NV-FEM-11', tier: 'Spark Node', tierId: 2, fee: 2000, hashrate: 0.032 },
-      { name: 'Chidinma O.', code: 'NV-CHI-12', tier: 'Echo Node', tierId: 5, fee: 16000, hashrate: 0.256 },
-      { name: 'Samuel Kalu', code: 'NV-SAM-13', tier: 'Micro Node', tierId: 1, fee: 1000, hashrate: 0.016 },
-      { name: 'Titi Johnson', code: 'NV-TIT-14', tier: 'Alpha Node', tierId: 3, fee: 4000, hashrate: 0.064 },
-      { name: 'Uche Okafor', code: 'NV-UCH-15', tier: 'Delta Node', tierId: 4, fee: 8000, hashrate: 0.128 },
-    ];
-
     const currentUserStakedTierIds = Array.isArray(currentUser?.stakedTierIds) && currentUser.stakedTierIds.length > 0
       ? currentUser.stakedTierIds
       : (currentUser?.tierId ? [Number(currentUser.tierId)] : [1]);
 
-    const binaryList = [];
-    const countToGenerate = Math.min(255, Math.max(directRecruits.length, totalRecordedSubNodes));
+    const binaryList = directRecruits.map((dr, i) => {
+      const nodeTierId = Number(dr.tierId) || 1;
+      const isQualified = currentUserStakedTierIds.includes(nodeTierId);
 
-    for (let i = 0; i < countToGenerate; i++) {
-      if (i < directRecruits.length) {
-        const dr = directRecruits[i];
-        const nodeTierId = Number(dr.tierId) || 1;
-        const isQualified = currentUserStakedTierIds.includes(nodeTierId);
+      return {
+        id: dr.id,
+        position: i + 1,
+        slotName: i === 0 ? 'Left Sub-Node (Direct 1)' : i === 1 ? 'Right Sub-Node (Direct 2)' : `Position #${i + 1}`,
+        name: dr.name || dr.email?.split('@')[0] || 'Sub-Node',
+        referralCode: dr.referralCode || `NV-SUB-${i + 1}`,
+        tierName: dr.tierName || 'Micro Node',
+        tierId: nodeTierId,
+        status: isQualified ? 'Active Validator' : 'Unmatched Tier',
+        isTierQualified: isQualified,
+        qualificationReason: isQualified
+          ? `Sponsor holds active Tier ${nodeTierId} stake. Full velocity unlocked.`
+          : `Sponsor is NOT actively staked on Tier ${nodeTierId} (${dr.tierName || 'Tier ' + nodeTierId}). Referrals only count if sponsor also stakes on the same node to prevent reward output issues.`,
+        joinedAt: dr.joinDate || '2026-10-01',
+        velocityBonus: isQualified ? '+5% Velocity' : '0% (Tier Unmatched)',
+        hashrate: (0.016 * nodeTierId).toFixed(3),
+        directChildrenCount: 0,
+      };
+    });
 
-        binaryList.push({
-          id: dr.id,
-          position: i + 1,
-          slotName: i === 0 ? 'Left Sub-Node (Direct 1)' : i === 1 ? 'Right Sub-Node (Direct 2)' : `Spillover Position #${i + 1}`,
-          name: dr.name || dr.email?.split('@')[0] || 'Sub-Node',
-          referralCode: dr.referralCode || `NV-SUB-${i+1}`,
-          tierName: dr.tierName || 'Micro Node',
-          tierId: nodeTierId,
-          status: isQualified ? 'Active Validator' : 'Unmatched Tier',
-          isTierQualified: isQualified,
-          qualificationReason: isQualified
-            ? `Sponsor holds active Tier ${nodeTierId} stake. Full velocity unlocked.`
-            : `Sponsor is NOT actively staked on Tier ${nodeTierId} (${dr.tierName || 'Tier ' + nodeTierId}). Referrals only count if sponsor also stakes on the same node to prevent reward output issues.`,
-          joinedAt: dr.joinDate || '2026-10-01',
-          velocityBonus: isQualified ? '+5% Velocity' : '0% (Tier Unmatched)',
-          hashrate: (0.016 * nodeTierId).toFixed(3),
-          directChildrenCount: Math.min(2, Math.max(0, countToGenerate - (i * 2 + 1))),
-        });
-      } else {
-        const sample = SAMPLE_NAMES[i % SAMPLE_NAMES.length];
-        const isQualified = currentUserStakedTierIds.includes(sample.tierId);
-
-        binaryList.push({
-          id: `subnode-gen-${i+1}`,
-          position: i + 1,
-          slotName: i === 0 ? 'Left Sub-Node (Direct 1)' : i === 1 ? 'Right Sub-Node (Direct 2)' : `Spillover Position #${i + 1}`,
-          name: `${sample.name}${i >= SAMPLE_NAMES.length ? ` (${Math.floor(i / SAMPLE_NAMES.length) + 1})` : ''}`,
-          referralCode: sample.code + (i > 10 ? `-${i}` : ''),
-          tierName: sample.tier,
-          tierId: sample.tierId,
-          status: isQualified ? 'Active Validator' : 'Unmatched Tier',
-          isTierQualified: isQualified,
-          qualificationReason: isQualified
-            ? `Sponsor holds active Tier ${sample.tierId} stake. Full velocity unlocked.`
-            : `Sponsor is NOT actively staked on Tier ${sample.tierId} (${sample.tier}). Under protocol rules, referrals only count if sponsor stakes on the same node.`,
-          joinedAt: `2026-10-${String((i % 20) + 1).padStart(2, '0')}`,
-          velocityBonus: isQualified ? '+5% Velocity' : '0% (Tier Unmatched)',
-          hashrate: sample.hashrate.toFixed(3),
-          directChildrenCount: Math.min(2, Math.max(0, countToGenerate - (i * 2 + 1))),
-        });
-      }
-    }
+    const totalRecordedSubNodes = directRecruits.length;
 
     // Qualified and Unmatched partitioned lists
     const qualifiedNodes = binaryList.filter(n => n.isTierQualified);
@@ -2448,6 +2170,16 @@ export const PERMISSION_GROUPS = [
       { key: 'db.read', label: 'Read Vault Credentials', type: 'read', desc: 'Inspect database host URL and public anonymous gateway keys', defaultRequirePassword: false },
       { key: 'db.test', label: 'Execute Ping Connection', type: 'manage', desc: 'Test live heartbeat to Supabase PostgreSQL cluster', defaultRequirePassword: false },
     ]
+  },
+  {
+    groupId: 'fees',
+    name: 'OPEX & VAT Protocol Rates',
+    icon: '💸',
+    description: 'Statutory Inbound/Outbound OPEX fees and Value Added Tax (VAT) rate schedules',
+    permissions: [
+      { key: 'fees.read', label: 'Read Protocol Fees', type: 'read', desc: 'View active inbound/outbound OPEX and VAT rates', defaultRequirePassword: false },
+      { key: 'fees.write', label: 'Modify Protocol Rates', type: 'write', desc: 'Update Inbound OPEX, Outbound OPEX, Inbound VAT, or Outbound VAT percentages', defaultRequirePassword: true },
+    ]
   }
 ];
 
@@ -2501,6 +2233,8 @@ export const hasSubPermission = (role, permKey) => {
     'rates.broadcast': 'broadcast_rates',
     'audit.read': 'view_audit_logs',
     'audit.export': 'view_audit_logs',
+    'fees.read': 'manage_fees',
+    'fees.write': 'manage_fees',
   };
 
   if (legacyMap[permKey] && role.permissions.includes(legacyMap[permKey])) return true;
@@ -3340,6 +3074,43 @@ export const dbAdmin = {
       refunds: userRefunds,
       transactions: userTxs
     };
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // PROTOCOL OPEX & VAT CONTROLS
+  // ════════════════════════════════════════════════════════════
+  getProtocolFees() {
+    const fees = getStored(STORAGE_KEYS.PROTOCOL_FEES, null);
+    if (fees && typeof fees.inboundOpexRate === 'number') {
+      return fees;
+    }
+    return DEFAULT_PROTOCOL_FEES;
+  },
+
+  async updateProtocolFees({ inboundOpexRate, outboundOpexRate, inboundVatRate, outboundVatRate, adminName = 'Admin', adminEmail = 'admin@nodevault.io' }) {
+    const current = this.getProtocolFees();
+    const updated = {
+      inboundOpexRate: typeof inboundOpexRate === 'number' ? inboundOpexRate : current.inboundOpexRate,
+      outboundOpexRate: typeof outboundOpexRate === 'number' ? outboundOpexRate : current.outboundOpexRate,
+      inboundVatRate: typeof inboundVatRate === 'number' ? inboundVatRate : current.inboundVatRate,
+      outboundVatRate: typeof outboundVatRate === 'number' ? outboundVatRate : current.outboundVatRate,
+      lastUpdated: new Date().toISOString(),
+      updatedBy: adminName
+    };
+
+    setStored(STORAGE_KEYS.PROTOCOL_FEES, updated);
+
+    this.logAdminAction({
+      category: 'FEES',
+      action: 'PROTOCOL_FEES_UPDATED',
+      target: 'OPEX & VAT Schedule',
+      details: `Inbound OPEX: ${(updated.inboundOpexRate * 100).toFixed(1)}%, Outbound OPEX: ${(updated.outboundOpexRate * 100).toFixed(1)}%, Inbound VAT: ${(updated.inboundVatRate * 100).toFixed(1)}%, Outbound VAT: ${(updated.outboundVatRate * 100).toFixed(1)}%`,
+      impact: 'CRITICAL',
+      adminName,
+      adminEmail
+    });
+
+    return updated;
   }
 };
 

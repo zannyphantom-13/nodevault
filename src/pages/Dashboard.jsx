@@ -130,7 +130,6 @@ const NAV_ITEMS = [
 export default function Dashboard() {
   const {
     user,
-    mockUser,
     region,
     logout,
     dbStatus,
@@ -148,6 +147,13 @@ export default function Dashboard() {
     sovereignRate,
   } = useApp();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+    }
+  }, [user, navigate]);
+
   const [activeTab, setActiveTab] = useState('overview');
   const [linkedBank, setLinkedBank] = useState(null);
   const [userKycRecord, setUserKycRecord] = useState(null);
@@ -162,7 +168,7 @@ export default function Dashboard() {
   const [selectedSubNode, setSelectedSubNode] = useState(null);
   const [networkViewMode, setNetworkViewMode] = useState('tree'); // 'tree' | 'level2' | 'level3' | 'matrix'
 
-  const u = user || mockUser;
+  const u = user || {};
   const isNG = region?.code === 'NG';
   const fmt = (n) => formatProjectedValue(n);
 
@@ -235,15 +241,12 @@ export default function Dashboard() {
   const [bladeSystems, setBladeSystems] = useState(() => {
     const init = {};
     const totalFee = computingNodes.reduce((sum, n) => sum + (n.fee || 1000), 0);
-    const totalBaseMined = Number(u?.minedNvt ?? 65.5000);
+    const totalBaseMined = Number(u?.minedNvt || 0);
 
     computingNodes.forEach((node, idx) => {
       const share = totalFee > 0 ? (node.fee / totalFee) : (1 / computingNodes.length);
       const specs = getServerSpecs(node.id, u?.isGraduate);
-      // Hashrate velocity boost applies strictly from matching tier sub-nodes
-      const tierSubs = (u?.id === '09ca1833-17fe-4904-97b5-ffea015dc359' || u?.email === 'hazytarzan12@gmail.com')
-        ? (node.id === 3 ? 1 : node.id === 5 ? 1 : 0)
-        : (u?.subNodes || 0);
+      const tierSubs = Number(u?.subNodes || 0);
       const effectiveHash = (specs.hashrateThs * (1 + tierSubs * 0.05)).toFixed(4);
       init[node.id] = {
         tierId: node.id,
@@ -264,7 +267,7 @@ export default function Dashboard() {
   });
 
   const [autoMine, setAutoMine] = useState(false);
-  const [minedNvt, setMinedNvt] = useState(Number(u?.minedNvt ?? 65.5000));
+  const [minedNvt, setMinedNvt] = useState(Number(u?.minedNvt || 0));
   const [convertNvtInput, setConvertNvtInput] = useState('');
   const [deskFeedback, setDeskFeedback] = useState(null);
   const [fuelFeedback, setFuelFeedback] = useState(null);
@@ -293,7 +296,7 @@ export default function Dashboard() {
       let changed = false;
       const totalFee = computingNodes.reduce((sum, n) => sum + (n.fee || 1000), 0);
       const currentTotalMined = Object.values(next).reduce((sum, b) => sum + (b.minedTokens || 0), 0);
-      const targetMined = Math.max(currentTotalMined, Number(u?.minedNvt ?? 65.5000));
+      const targetMined = Math.max(currentTotalMined, Number(u?.minedNvt || 0));
 
       computingNodes.forEach((node, idx) => {
         if (!next[node.id]) {
