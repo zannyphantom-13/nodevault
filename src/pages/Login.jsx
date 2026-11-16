@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import './Login.css';
@@ -14,6 +14,8 @@ export default function Login() {
   const [error, setError]           = useState('');
   const [loading, setLoading]       = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  // When we detect UNCONFIRMED, store the email to show the redirect UI
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState(null);
 
   const handleGoogleSignIn = async () => {
     setError('');
@@ -44,6 +46,7 @@ export default function Login() {
     }
 
     setError('');
+    setUnconfirmedEmail(null);
     setLoading(true);
 
     try {
@@ -51,7 +54,13 @@ export default function Login() {
       login(user);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      const msg = err.message || '';
+      if (msg.startsWith('ACCOUNT_UNCONFIRMED:')) {
+        const email = msg.replace('ACCOUNT_UNCONFIRMED:', '').trim();
+        setUnconfirmedEmail(email);
+      } else {
+        setError(msg || 'Login failed. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -87,9 +96,41 @@ export default function Login() {
           <p className="login-subtitle">Access your validator telemetry, yield ledger, and payouts.</p>
         </div>
 
-        {error && (
+        {/* UNCONFIRMED ACCOUNT INTERCEPT */}
+        {unconfirmedEmail && (
+          <div style={{
+            background: 'rgba(250, 204, 21, 0.08)',
+            border: '1px solid rgba(250, 204, 21, 0.4)',
+            borderRadius: '12px',
+            padding: '1.1rem 1.25rem',
+            marginBottom: '1.25rem',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#facc15', marginBottom: '0.5rem' }}>
+              â³ Account Registration Incomplete
+            </div>
+            <p style={{ fontSize: '0.82rem', color: '#94a3b8', lineHeight: 1.6, margin: '0 0 0.9rem' }}>
+              The account for <strong style={{ color: '#e2e8f0' }}>{unconfirmedEmail}</strong> has not been fully confirmed yet.
+              You need to complete the identity capture step to activate your account.
+            </p>
+            <button
+              className="btn btn-primary btn-full"
+              onClick={() => navigate(`/confirm?email=${encodeURIComponent(unconfirmedEmail)}`)}
+            >
+              Continue to Account Confirmation â†’
+            </button>
+            <button
+              type="button"
+              onClick={() => setUnconfirmedEmail(null)}
+              style={{ display: 'block', width: '100%', marginTop: '0.5rem', background: 'none', border: 'none', color: '#64748b', fontSize: '0.78rem', cursor: 'pointer', textAlign: 'center' }}
+            >
+              Use a different account
+            </button>
+          </div>
+        )}
+
+        {error && !unconfirmedEmail && (
           <div className="login-error-banner" style={{ marginBottom: '1.25rem' }}>
-            <span>⚠️</span>
+            <span>âš ï¸</span>
             <span>{error}</span>
           </div>
         )}
@@ -138,7 +179,7 @@ export default function Login() {
                 id="login-pwd"
                 type={showPwd ? 'text' : 'password'}
                 className="login-input"
-                placeholder="••••••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -150,7 +191,7 @@ export default function Login() {
                 onClick={() => setShowPwd(!showPwd)}
                 aria-label="Toggle password visibility"
               >
-                {showPwd ? '👁️' : '👁️‍🗨️'}
+                {showPwd ? 'ðŸ‘ï¸' : 'ðŸ‘ï¸â€ðŸ—¨ï¸'}
               </button>
             </div>
           </div>
@@ -203,10 +244,10 @@ export default function Login() {
                       <strong style={{ color: '#fff' }}>{u.name}</strong>
                     </div>
                     <div style={{ color: '#94a3b8', fontSize: '0.74rem' }}>
-                      {u.email} • {u.tierName || 'Node'}
+                      {u.email} â€¢ {u.tierName || 'Node'}
                     </div>
                   </div>
-                  <span style={{ color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600 }}>Login →</span>
+                  <span style={{ color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600 }}>Login â†’</span>
                 </button>
               ))}
             </div>

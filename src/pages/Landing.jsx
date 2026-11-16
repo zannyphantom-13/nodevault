@@ -1,8 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
 import { TIER_DATA_NG, REGIONS, formatNaira, formatNairaCompact } from '../data/platform';
+import {
+  IconNodeCube,
+  IconShieldNIBSS,
+  IconLightningNVT,
+  IconBinaryTree,
+  IconBank,
+  IconServer,
+  IconCurrencyNVT,
+  IconArrowRight,
+  IconCheckCircle,
+  IconLock,
+} from '../components/icons/IconSet';
 import RefundPolicyModal from '../components/RefundPolicyModal';
 import ProtocolMechanicsModal from '../components/ProtocolMechanicsModal';
+import SovereignRateModal from '../components/SovereignRateModal';
 import './Landing.css';
 
 // ── Bespoke Crypto / Blockchain SVG Icon Set ──────────────────────────────────
@@ -164,10 +178,10 @@ const HOW_STEPS = [
   {
     step: '04',
     phase: 'STATUTORY RESERVE',
-    tag: 'UP TO 70% NET',
-    title: 'Capital Protection Guarantee',
-    desc: 'Our automated solvency engine computes net unrecovered principal in real-time, backing your exit with up to 70% (Tier A) or 60% (Tier B) statutory refunds.',
-    telemetry: 'Protected by Statutory Reserve Fund',
+    tag: '100% PRINCIPAL',
+    title: 'Statutory Capital Protection',
+    desc: 'Capital protection operates under Federal Government Treasury Bill regulation and NIBSS statutory clearing, returning 100% of your invested principal upon scheduled maturity.',
+    telemetry: 'Backed by Federal Statutory Reserve Instruments',
     color: 'var(--accent-cyan)',
     Icon: IconShield,
   },
@@ -175,6 +189,7 @@ const HOW_STEPS = [
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { formatProjectedValue, projectionMode, sovereignRate } = useApp();
   const [heroVisible, setHeroVisible] = useState(false);
   const [howRef, howVisible] = useScrollReveal();
   const [statsRef, statsVisible] = useScrollReveal();
@@ -182,6 +197,7 @@ export default function Landing() {
   // Modals state
   const [protocolModalOpen, setProtocolModalOpen] = useState(false);
   const [refundPolicyModalOpen, setRefundPolicyModalOpen] = useState(false);
+  const [sovereignModalOpen, setSovereignModalOpen] = useState(false);
 
   // Multi-Node Staking Calculator State on Landing Page
   const [selectedCalcTiers, setSelectedCalcTiers] = useState([5]); // default: Tier 5 Echo Node (₦16,000)
@@ -192,25 +208,9 @@ export default function Landing() {
   const calcSelectedTiersList = TIER_DATA_NG.filter(t => selectedCalcTiers.includes(t.id));
   const calcTotalStake = calcSelectedTiersList.reduce((sum, t) => sum + t.fee, 0);
 
-  // Tier A: Zero yield -> 70% of gross stake
-  // Tier B: Yield < 60% of stake -> top up so (yield + refund) = 60% of stake
-  // Tier C: Yield >= 60% -> 0
-  let calcTier = 'A';
-  let calcGross = 0;
-  const threshold60 = calcTotalStake * 0.60;
-  if (calcYieldDistributed <= 0) {
-    calcTier = 'A';
-    const rate = calcIsEOM ? 0.70 : 0.63; // 70% minus 10% early penalty
-    calcGross = Math.round(calcTotalStake * rate);
-  } else if (calcYieldDistributed < threshold60) {
-    calcTier = 'B';
-    const unrecoveredTo60 = Math.max(0, threshold60 - calcYieldDistributed);
-    calcGross = Math.round(unrecoveredTo60);
-  } else {
-    calcTier = 'C';
-    calcGross = 0;
-  }
-
+  // 100% Principal Protection under Federal Statutory Policy
+  let calcTier = 'Full';
+  const calcGross = calcIsEOM ? calcTotalStake : Math.round(calcTotalStake * 0.90); // 100% or 90% (with 10% early unbundle)
   const calcTax = Math.round(calcGross * 0.03);
   const calcNet = Math.max(0, calcGross - calcTax);
 
@@ -233,9 +233,9 @@ export default function Landing() {
 
         <div className="container hero-content">
           <div className={`hero-left ${heroVisible ? 'visible' : ''}`}>
-            <div className="badge badge-cyan hero-badge">
+            <div className="badge badge-cyan hero-badge" onClick={() => setSovereignModalOpen(true)} style={{ cursor: 'pointer' }} title="Click to view CBN Sovereign Benchmark Breakdown">
               <span className="pulse-dot" style={{ background: 'var(--accent-cyan)' }} />
-              ⚡ DECENTRALIZED YIELD LAUNCHPAD · 12.0% SOVEREIGN APY
+              ⚡ DECENTRALIZED YIELD LAUNCHPAD · {sovereignRate?.customerAPY || '12.7'}% SOVEREIGN APY
             </div>
 
             <h1 className="hero-headline">
@@ -246,8 +246,8 @@ export default function Landing() {
 
             <p className="hero-desc">
               NodeVault pairs high-velocity validator pools with institutional treasury vaults. 
-              Stake once into 15 progressive node tiers, earn <strong>12.0% annual protocol yield</strong>, 
-              and enjoy an automated <strong>70% Capital Protection Guarantee</strong>.
+              Stake once into 15 progressive node tiers, earn <strong>{sovereignRate?.customerAPY || '12.7'}% annual protocol yield</strong>, 
+              and enjoy <strong>100% Statutory Principal Protection</strong> under Federal Government Treasury Policy.
             </p>
 
             <div className="hero-actions">
@@ -268,8 +268,8 @@ export default function Landing() {
             {/* Trust row */}
             <div className="hero-trust">
               {[
-                '70% Capital Guarantee Floor',
-                '12.0% Tax-Exempt T-Bill Backing',
+                '100% Statutory Capital Protection',
+                `${sovereignRate?.customerAPY || '12.7'}% CBN 364D T-Bill Benchmark`,
                 'Instant NIBSS & Paystack Payouts',
               ].map(t => (
                 <div key={t} className="trust-item">
@@ -316,36 +316,43 @@ export default function Landing() {
               <div className="terminal-data-grid">
                 <div className="terminal-cell">
                   <div className="terminal-cell-label">Staking Entry</div>
-                  <div className="terminal-cell-val" style={{ color: '#fff' }}>₦16,000</div>
+                  <div className="terminal-cell-val" style={{ color: '#fff' }}>{formatProjectedValue(16000)}</div>
                   <div className="terminal-cell-sub">Single Stake</div>
                 </div>
-                <div className="terminal-cell">
-                  <div className="terminal-cell-label">Sovereign APY</div>
-                  <div className="terminal-cell-val" style={{ color: 'var(--accent-green)' }}>12.0%</div>
-                  <div className="terminal-cell-sub">Institutional Rate</div>
+                <div className="terminal-cell" onClick={() => setSovereignModalOpen(true)} style={{ cursor: 'pointer' }} title="Click to view CBN Sovereign Benchmark Breakdown">
+                  <div className="terminal-cell-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    Sovereign APY
+                    <span style={{ fontSize: '0.62rem', background: 'rgba(0,255,148,0.15)', color: 'var(--accent-green)', padding: '1px 4px', borderRadius: '3px' }}>CBN 364D</span>
+                  </div>
+                  <div className="terminal-cell-val" style={{ color: 'var(--accent-green)' }}>{sovereignRate?.customerAPY || '12.7'}%</div>
+                  <div className="terminal-cell-sub">Net of 6.0% Fee</div>
                 </div>
                 <div className="terminal-cell">
                   <div className="terminal-cell-label">Capital Protection</div>
-                  <div className="terminal-cell-val" style={{ color: 'var(--accent-cyan)' }}>₦11,200</div>
-                  <div className="terminal-cell-sub">70% Tier A Floor</div>
+                  <div className="terminal-cell-val" style={{ color: 'var(--accent-cyan)' }}>{formatProjectedValue(16000)}</div>
+                  <div className="terminal-cell-sub">100% Principal Return</div>
                 </div>
                 <div className="terminal-cell">
-                  <div className="terminal-cell-label">Referral Pool</div>
-                  <div className="terminal-cell-val" style={{ color: 'var(--accent-cyan)' }}>30%</div>
-                  <div className="terminal-cell-sub">15% Direct / Binary</div>
+                  <div className="terminal-cell-label">Settlement Rail</div>
+                  <div className="terminal-cell-val" style={{ color: 'var(--accent-green)' }}>NIBSS NIP</div>
+                  <div className="terminal-cell-sub">Direct Inter-Bank</div>
                 </div>
               </div>
 
               {/* Terminal Action Button */}
               <Link to="/tiers" className="btn btn-primary btn-block terminal-stake-btn">
-                Stake Echo Node ₦16,000 ⚡
+                <span>Stake Echo Node {formatProjectedValue(16000)}</span>
+                <IconArrowRight size={16} />
               </Link>
 
               {/* Bottom Micro Ticker */}
               <div className="terminal-micro-row">
-                <span>🛡️ 3-Day Liquidity Buffer</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <IconShieldNIBSS size={13} color="var(--accent-green)" />
+                  NIBSS Cleared Settlement
+                </span>
                 <span>•</span>
-                <span>SEC-Aligned Custody</span>
+                <span>Automated NIP Dispatch</span>
               </div>
             </div>
           </div>
@@ -359,8 +366,8 @@ export default function Landing() {
             { label: 'Active Network Nodes', color: 'var(--accent-cyan)', el: <Counter end={stats.totalNodes} /> },
             { label: 'Total Value Staked',   color: 'var(--accent-cyan)', el: <>₦<Counter end={4820} suffix="M+" /></> },
             { label: 'Genesis Pools Live',   color: 'var(--accent-indigo)', el: <Counter end={stats.activePools} /> },
-            { label: 'Sovereign APY',        color: 'var(--accent-green)', el: <>12.0%</> },
-            { label: 'Protocol Graduates',   color: '#fff', el: <Counter end={stats.graduates} /> },
+            { label: 'Sovereign APY',        color: 'var(--accent-green)', el: <>{sovereignRate?.customerAPY || '12.7'}%</> },
+            { label: 'Active Validators',    color: '#fff', el: <Counter end={stats.activeValidators || 18742} /> },
           ].map(({ label, color, el }, i) => (
             <React.Fragment key={label}>
               {i > 0 && <div className="stat-divider" />}
@@ -444,8 +451,8 @@ export default function Landing() {
               onClick={() => setProtocolModalOpen(true)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.65rem', border: '1px solid rgba(0, 229, 255, 0.35)', background: 'rgba(0, 229, 255, 0.06)' }}
             >
-              <span>💡</span>
-              <span>Get Clear Understanding: Deconstruct the 4 Protocol Stages & Capital Protection →</span>
+              <IconShieldNIBSS size={18} color="var(--accent-cyan)" />
+              <span>Deconstruct the 4 Protocol Stages & NIBSS Capital Protection →</span>
             </button>
           </div>
         </div>
@@ -458,7 +465,7 @@ export default function Landing() {
             <p className="section-label">Entry-Level Staking</p>
             <h2 className="section-title">Start Small. <span className="gradient-text">Earn Big.</span></h2>
             <p className="section-desc mx-auto">
-              Five accessible micro-investment tiers let anyone stake from just ₦1,000 — with the same Capital Protection Guarantee as our premium nodes.
+              Five accessible micro-investment tiers let anyone stake from just {formatProjectedValue(1000)} — with the same 100% Statutory Principal Protection under Federal NIBSS Policy as our premium nodes.
             </p>
           </div>
 
@@ -491,7 +498,7 @@ export default function Landing() {
                   <div className="stc-name" style={{ color: tier.color }}>{tier.name}</div>
 
                   {/* Entry fee — large mono display */}
-                  <div className="stc-fee">{formatNaira(tier.fee)}</div>
+                  <div className="stc-fee">{formatProjectedValue(tier.fee)}</div>
                   <div className="stc-fee-label">Stake Entry Fee</div>
 
                   {/* Stats grid: APY | Pools | Max Refund */}
@@ -507,16 +514,16 @@ export default function Landing() {
                     </div>
                     <div className="stc-stat-sep" />
                     <div className="stc-stat">
-                      <div className="stc-stat-val">{formatNaira(tier.maxRefundTierA)}</div>
-                      <div className="stc-stat-key">Max Refund</div>
+                      <div className="stc-stat-val">{formatProjectedValue(tier.maxRefundTierA)}</div>
+                      <div className="stc-stat-key">NIBSS Floor</div>
                     </div>
                   </div>
 
                   {/* Protection badge row */}
                   <div className="stc-footer">
                     <span className="stc-protection">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                      70% Capital Protected
+                      <IconShieldNIBSS size={12} color="var(--accent-green)" />
+                      100% Principal Protected
                     </span>
                     <span className="stc-arrow" style={{ color: tier.color }}>→</span>
                   </div>
@@ -539,21 +546,19 @@ export default function Landing() {
         <div className="container">
           <div className="refund-preview-wrap">
             <div className="refund-preview-left">
-              <p className="section-label">Capital Protection Engine</p>
+              <p className="section-label">Federal Regulatory Framework</p>
               <h2 className="section-title">
-                Your Capital is <span className="gradient-text">Always Protected</span>
+                100% Capital Return under <span className="gradient-text">Federal Statutory Policy</span>
               </h2>
               <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.8 }}>
-                NodeVault's refund eligibility engine calculates your net unrecovered principal
-                in real-time. Your maximum protection is capped at 70% (Tier A) or 60% (Tier B), computed <em>after</em> deducting
-                yield already distributed — ensuring protocol solvency and fairness.
+                NodeVault's solvency engine operates under strict Central Bank of Nigeria & NIBSS clearing guidelines. Validator capital is backed by sovereign Treasury assets, ensuring 100% of your invested principal is disbursed at maturity via automated inter-bank settlement.
               </p>
 
               <div className="refund-tiers-list">
                 {[
-                  { tier: 'A', label: 'Full Protection',    condition: 'Zero yield received',      pct: '70% (End of Month)',        color: 'var(--accent-green)' },
-                  { tier: 'B', label: 'Partial Protection', condition: 'Yield < 60% of stake',     pct: 'Top up to 60% (After 6 months)', color: 'var(--accent-cyan)' },
-                  { tier: 'C', label: 'Disqualified',       condition: 'Yield ≥ 60% of stake',     pct: '₦0 (Cap reached)',          color: 'var(--accent-red)' },
+                  { tier: '100%', label: 'Scheduled Maturity', condition: 'Full tenure / Month-End', pct: '100% Principal Returned', color: 'var(--accent-green)' },
+                  { tier: '95%', label: 'Late Cycle Release', condition: 'Days 91–180 unbundle', pct: '95% Net (5% early exit)', color: 'var(--accent-cyan)' },
+                  { tier: '90%', label: 'Early Unbundle', condition: 'Days 31–90 unbundle', pct: '90% Net (10% early exit)', color: 'var(--accent-amber)' },
                 ].map(r => (
                   <div key={r.tier} className="refund-tier-row">
                     <div className="refund-tier-badge" style={{ color: r.color, borderColor: r.color }}>{r.tier}</div>
@@ -576,8 +581,8 @@ export default function Landing() {
                   onClick={() => setRefundPolicyModalOpen(true)}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                 >
-                  <span>📜</span>
-                  <span>Read Full Policy (Plain English) →</span>
+                  <IconShieldNIBSS size={16} color="var(--accent-cyan)" />
+                  <span>Read Full NIBSS Policy (Plain English) →</span>
                 </button>
               </div>
             </div>
@@ -587,8 +592,8 @@ export default function Landing() {
                 <div className="card-scan-line" />
                 <div className="refund-calc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <span className="badge badge-cyan">
-                    <span className="pulse-dot" style={{ background: 'var(--accent-cyan)' }} />
-                    Live Multi-Node Simulator
+                    <IconShieldNIBSS size={13} color="var(--accent-cyan)" />
+                    NIBSS Solvency Simulator
                   </span>
                   <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
                     {calcSelectedTiersList.length} {calcSelectedTiersList.length === 1 ? 'Node Selected' : 'Nodes in Portfolio'}
@@ -656,7 +661,7 @@ export default function Landing() {
                           }}
                         >
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.color }} />
-                          {t.name} ({formatNairaCompact(t.fee)})
+                          {t.name} ({formatProjectedValue(t.fee, true)})
                         </button>
                       );
                     })}
@@ -666,7 +671,7 @@ export default function Landing() {
                 <div className="refund-calc-body">
                   <div className="refund-calc-row">
                     <span>Total Staked Capital</span>
-                    <strong style={{ fontSize: '1.05rem', color: '#fff' }}>{formatNaira(calcTotalStake)}</strong>
+                    <strong style={{ fontSize: '1.05rem', color: '#fff' }}>{formatProjectedValue(calcTotalStake)}</strong>
                   </div>
 
                   <div className="refund-calc-row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
@@ -677,7 +682,7 @@ export default function Landing() {
                         onClick={() => setCalcYieldDistributed(0)}
                         style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', borderRadius: 4, background: calcYieldDistributed === 0 ? 'rgba(0,255,148,0.2)' : 'rgba(255,255,255,0.05)', color: calcYieldDistributed === 0 ? '#00ff94' : '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}
                       >
-                        ₦0
+                        0%
                       </button>
                       <button
                         type="button"
@@ -693,7 +698,7 @@ export default function Landing() {
                       >
                         50%
                       </button>
-                      <strong style={{ color: 'var(--accent-green)', marginLeft: '0.3rem' }}>{formatNaira(calcYieldDistributed)}</strong>
+                      <strong style={{ color: 'var(--accent-green)', marginLeft: '0.3rem' }}>{formatProjectedValue(calcYieldDistributed)}</strong>
                     </div>
                   </div>
 
@@ -701,24 +706,24 @@ export default function Landing() {
 
                   <div className="refund-calc-row">
                     <span>Eligibility Status</span>
-                    <span className={`badge ${calcTier === 'A' ? 'badge-green' : calcTier === 'B' ? 'badge-cyan' : 'badge-red'}`}>
-                      Tier {calcTier} {calcTier === 'A' ? '(70% Protection)' : calcTier === 'B' ? '(Top up to 60%)' : '(Cap Satisfied)'}
+                    <span className="badge badge-green">
+                      100% Principal Protection (NIBSS Standard)
                     </span>
                   </div>
 
                   <div className="refund-calc-row">
-                    <span>Gross Statutory Refund</span>
-                    <strong>{formatNaira(calcGross)}</strong>
+                    <span>Gross Statutory Return</span>
+                    <strong>{formatProjectedValue(calcGross)}</strong>
                   </div>
 
                   <div className="refund-calc-row">
-                    <span>Statutory Outbound Tax (3%)</span>
-                    <strong style={{ color: 'var(--accent-red)' }}>−{formatNaira(calcTax)}</strong>
+                    <span>Statutory Outbound Processing (3%)</span>
+                    <strong style={{ color: 'var(--accent-red)' }}>−{formatProjectedValue(calcTax)}</strong>
                   </div>
 
                   <div className="refund-calc-total">
                     <span>Net Guaranteed Capital Return</span>
-                    <strong className="gradient-text">{formatNaira(calcNet)}</strong>
+                    <strong className="gradient-text">{formatProjectedValue(calcNet)}</strong>
                   </div>
 
                   {/* Multi-Node Per-Node Breakdown if > 1 node selected */}
@@ -729,12 +734,12 @@ export default function Landing() {
                       </span>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.4rem' }}>
                         {calcSelectedTiersList.map(n => {
-                          const nodeGross = Math.round(n.fee * (calcTier === 'A' ? (calcIsEOM ? 0.70 : 0.63) : 0.60));
+                          const nodeGross = Math.round(n.fee * (calcIsEOM ? 1.00 : 0.90));
                           const nodeNet = Math.round(nodeGross * 0.97);
                           return (
                             <div key={n.id} style={{ background: 'rgba(0,0,0,0.25)', padding: '0.35rem 0.5rem', borderRadius: 6, fontSize: '0.72rem' }}>
                               <span style={{ color: n.color, fontWeight: 700, display: 'block' }}>{n.name}</span>
-                              <span style={{ color: '#00ff94' }}>{formatNaira(nodeNet)}</span>
+                              <span style={{ color: '#00ff94' }}>{formatProjectedValue(nodeNet)}</span>
                             </div>
                           );
                         })}
@@ -747,9 +752,10 @@ export default function Landing() {
                       type="button"
                       className="btn btn-secondary btn-sm"
                       onClick={() => setRefundPolicyModalOpen(true)}
-                      style={{ width: '100%', fontSize: '0.75rem', padding: '0.4rem 0.75rem' }}
+                      style={{ width: '100%', fontSize: '0.75rem', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                     >
-                      🛡️ Read Full Capital Protection Policy (Plain English) ↗
+                      <IconShieldNIBSS size={14} color="var(--accent-cyan)" />
+                      <span>Read Full NIBSS Capital Protection Policy (Plain English) ↗</span>
                     </button>
                   </div>
                 </div>
@@ -783,9 +789,9 @@ export default function Landing() {
                   {tier.category === 'elite' && <span className="badge badge-cyan">Cap Tier</span>}
                 </div>
                 <div className="premium-tier-name">{tier.name}</div>
-                <div className="premium-tier-fee">{formatNaira(tier.fee)}</div>
+                <div className="premium-tier-fee">{formatProjectedValue(tier.fee)}</div>
                 <div className="premium-tier-meta">
-                  <div>Max Refund: <strong>{formatNaira(tier.maxRefundTierA)}</strong></div>
+                  <div>NIBSS Floor: <strong>{formatProjectedValue(tier.maxRefundTierA)}</strong></div>
                   <div>APY: <strong style={{ color: 'var(--accent-green)' }}>{(14 + tier.id * 0.3).toFixed(1)}%</strong></div>
                 </div>
               </div>
@@ -834,6 +840,10 @@ export default function Landing() {
       <ProtocolMechanicsModal
         isOpen={protocolModalOpen}
         onClose={() => setProtocolModalOpen(false)}
+      />
+      <SovereignRateModal
+        isOpen={sovereignModalOpen}
+        onClose={() => setSovereignModalOpen(false)}
       />
     </div>
   );

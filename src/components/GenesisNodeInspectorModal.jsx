@@ -18,7 +18,7 @@ export default function GenesisNodeInspectorModal({
 
   const nodeAddress = `0x${((node.id * 184920491) ^ 0xabcdef).toString(16).padStart(8, '0')}...${((node.id * 77192) % 65535).toString(16)}`;
   const certNumber = `NV-VAL-2026-T${String(node.id).padStart(2, '0')}-${((node.id * 8923) % 9000 + 1000)}`;
-  const guaranteedFloor = Math.round(node.fee * 0.70);
+  const guaranteedFloor = Math.round(node.fee * 1.00);
 
   const handleRunPing = () => {
     setPingTestStatus('testing');
@@ -70,7 +70,7 @@ export default function GenesisNodeInspectorModal({
         <div className="node-modal-nav">
           {[
             { id: 'telemetry', label: 'Hardware Telemetry' },
-            { id: 'protection', label: 'Capital Protection (70%)' },
+            { id: 'protection', label: 'Capital Protection (100%)' },
             { id: 'console', label: 'Consensus Logs' },
           ].map(tab => (
             <button
@@ -187,7 +187,7 @@ export default function GenesisNodeInspectorModal({
                     <strong style={{ color: '#fff' }}>{formatCurrency(node.fee)}</strong>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem 0.65rem', borderRadius: 8 }}>
-                    <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Guaranteed Exit Floor (70%)</div>
+                    <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Statutory Principal Protection (100%)</div>
                     <strong style={{ color: '#00ff94' }}>{formatCurrency(guaranteedFloor)}</strong>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem 0.65rem', borderRadius: 8 }}>
@@ -201,9 +201,9 @@ export default function GenesisNodeInspectorModal({
                 </div>
 
                 <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
-                  This validator node position is an independent legal instrument under NodeVault Capital Protection Policy v4.2.
-                  In the event of an orderly end-of-month exit request, the platform guarantees immediate statutory disbursement of up to
-                  <strong> 70% of gross capital (₦{guaranteedFloor.toLocaleString()})</strong> directly to your linked verified bank account.
+                  This validator node position is an independent legal instrument under statutory Government Capital Protection and NIBSS Settlement Policy.
+                  Upon scheduled maturity or unbundling, the platform disburses
+                  <strong> 100% of gross principal (₦{guaranteedFloor.toLocaleString()})</strong> directly to your linked verified bank account (less standard early exit penalties if unbundled prematurely).
                 </p>
               </div>
             </div>

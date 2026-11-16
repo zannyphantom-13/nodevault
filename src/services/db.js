@@ -5,7 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { notificationService } from './notifications';
 import { tamperProofStorage } from './security';
-import { getServerSpecs } from '../data/platform';
+import { getServerSpecs, TIER_DATA_NG, getMaxPools } from '../data/platform';
 
 const STORAGE_KEYS = {
   CONFIG: 'nodevault_db_config',
@@ -16,6 +16,13 @@ const STORAGE_KEYS = {
   DOCS: 'nodevault_uploaded_docs',
   REFUNDS: 'nodevault_refund_requests',
   TXS: 'nodevault_transactions',
+  TIERS: 'nodevault_custom_tiers',
+  ROLES: 'nodevault_admin_roles',
+  MODULES: 'nodevault_platform_modules',
+  AUDIT_LOGS: 'nodevault_audit_logs',
+  SECURITY_POLICIES: 'nodevault_security_policies',
+  TIME_LIMITED_PASSCODES: 'nodevault_time_limited_passcodes',
+  UNCONFIRMED: 'nodevault_unconfirmed_registrations',
 };
 
 // Retrieve configured Supabase credentials (environment or user-input)
@@ -694,6 +701,137 @@ export const dbAuth = {
     }
   },
 
+  // Check email registration status (confirmed/unconfirmed/available)
+  checkEmailStatus(email) {
+    const normalizedEmail = email.trim().toLowerCase();
+    // 1. Check confirmed users
+    const users = getStored(STORAGE_KEYS.USERS, []);
+    if (users.some(u => u.email?.toLowerCase() === normalizedEmail)) {
+      return 'confirmed'; // already a full registered user
+    }
+    // 2. Check unconfirmed registrations
+    const unconfirmed = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+    if (unconfirmed.some(u => u.email?.toLowerCase() === normalizedEmail)) {
+      return 'unconfirmed'; // started registration, not completed
+    }
+    return 'available';
+  },
+
+  // Check if phone number is already in use
+  checkPhoneExists(phone) {
+    if (!phone?.trim()) return false;
+    const normalized = phone.trim().replace(/\s+/g, '');
+    const users = getStored(STORAGE_KEYS.USERS, []);
+    return users.some(u => u.phone?.replace(/\s+/g, '') === normalized);
+  },
+
+  // Check if a government ID number is already registered
+  checkIdExists(idNumber, idType) {
+    if (!idNumber?.trim()) return false;
+    const normalized = idNumber.trim().toUpperCase();
+    // Check in KYC records (confirmed accounts)
+    const kycRecords = getStored(STORAGE_KEYS.KYC, []);
+    if (kycRecords.some(r => r.idNumber?.toUpperCase() === normalized)) return true;
+    // Check in unconfirmed (pending confirmations)
+    const unconfirmed = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+    return unconfirmed.some(u => u.idNumber?.toUpperCase() === normalized);
+  },
+
+  // Save an unconfirmed registration (email OTP verified but ID capture pending)
+  saveUnconfirmedRegistration(data) {
+    const unconfirmed = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+    const existing = unconfirmed.findIndex(u => u.email?.toLowerCase() === data.email?.toLowerCase());
+    if (existing !== -1) {
+      unconfirmed[existing] = { ...unconfirmed[existing], ...data, updatedAt: new Date().toISOString() };
+    } else {
+      unconfirmed.push({ ...data, createdAt: new Date().toISOString() });
+    }
+    setStored(STORAGE_KEYS.UNCONFIRMED, unconfirmed);
+  },
+
+  // Get an unconfirmed registration by email
+  getUnconfirmedByEmail(email) {
+    const normalized = email.trim().toLowerCase();
+    const unconfirmed = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+    return unconfirmed.find(u => u.email?.toLowerCase() === normalized) || null;
+  },
+
+  // Confirm an account: validate ID uniqueness, write to users, remove from unconfirmed
+  async confirmAccount({ email, idType, idNumber }) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedId = idNumber.trim().toUpperCase();
+
+    // 1. Check ID uniqueness
+    if (this.checkIdExists(normalizedId, idType)) {
+      throw new Error('This identity number is already registered to another account.');
+    }
+
+    // 2. Get pending registration data
+    const pending = this.getUnconfirmedByEmail(normalizedEmail);
+    if (!pending) {
+      throw new Error('No pending registration found for this email. Please register again.');
+    }
+
+    // 3. Build confirmed user object
+    const confirmedUser = {
+      ...pending,
+      status: 'confirmed',
+      kycStatus: 'pending',
+      idType,
+      idNumber: normalizedId,
+      confirmedAt: new Date().toISOString(),
+    };
+
+    // 4. Write to users store
+    const users = getStored(STORAGE_KEYS.USERS, []);
+    const idx = users.findIndex(u => u.email?.toLowerCase() === normalizedEmail);
+    if (idx !== -1) {
+      users[idx] = { ...users[idx], ...confirmedUser };
+    } else {
+      users.push(confirmedUser);
+    }
+    setStored(STORAGE_KEYS.USERS, users);
+
+    // 5. Write KYC pre-capture record
+    const kycRecords = getStored(STORAGE_KEYS.KYC, []);
+    const kycExists = kycRecords.findIndex(r => r.userId === confirmedUser.id);
+    const kycEntry = {
+      id: generateUUID(),
+      userId: confirmedUser.id,
+      idType,
+      idNumber: normalizedId,
+      status: 'pending',
+      submittedAt: new Date().toISOString(),
+    };
+    if (kycExists !== -1) {
+      kycRecords[kycExists] = { ...kycRecords[kycExists], ...kycEntry };
+    } else {
+      kycRecords.push(kycEntry);
+    }
+    setStored(STORAGE_KEYS.KYC, kycRecords);
+
+    // 6. Remove from unconfirmed
+    const unconfirmed = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+    setStored(STORAGE_KEYS.UNCONFIRMED, unconfirmed.filter(u => u.email?.toLowerCase() !== normalizedEmail));
+
+    // 7. Supabase sync if available
+    const sb = getSupabase();
+    if (sb && confirmedUser.id) {
+      try {
+        await sb.from('profiles').update({
+          kyc_status: 'pending',
+          id_type: idType,
+          id_number: normalizedId,
+          confirmed_at: confirmedUser.confirmedAt,
+        }).eq('id', confirmedUser.id);
+      } catch(e) { /* non-blocking */ }
+    }
+
+    // 8. Set as current session
+    setStored(STORAGE_KEYS.CURRENT_USER, confirmedUser);
+    return confirmedUser;
+  },
+
   // Register a new user (with mandatory email verification to prevent identity theft)
   async register({ email, password, name, phone, region = 'NG', referralCode = '', tier = null }) {
     const creds = getSupabaseCredentials();
@@ -707,7 +845,23 @@ export const dbAuth = {
     const users = getStored(STORAGE_KEYS.USERS, []);
     const existing = users.find(u => u.email.toLowerCase() === normalizedEmail);
     if (existing) {
-      throw new Error('An account with this email already exists. Please log in.');
+      throw new Error('EMAIL_CONFIRMED'); // caller checks for this sentinel
+    }
+
+    // Check if phone is already used (local store)
+    const normalizedPhone = phone?.trim().replace(/\s+/g, '');
+    if (normalizedPhone) {
+      const phoneTaken = users.some(u => u.phone?.replace(/\s+/g, '') === normalizedPhone);
+      if (phoneTaken) {
+        throw new Error('PHONE_TAKEN');
+      }
+    }
+
+    // Check if already in unconfirmed queue
+    const unconfirmedList = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+    const inProgress = unconfirmedList.find(u => u.email?.toLowerCase() === normalizedEmail);
+    if (inProgress) {
+      throw new Error('EMAIL_UNCONFIRMED'); // caller re-routes to confirmation page
     }
 
     // 1. Try Supabase Auth if available
@@ -758,8 +912,15 @@ export const dbAuth = {
           subNodes: 0,
           kycStatus: 'unverified',
           joinDate: new Date().toISOString().split('T')[0],
-          status: 'active',
+          status: 'unconfirmed',
         };
+
+        // Save to UNCONFIRMED store so email status checks work
+        const unconfirmedStore = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+        const uIdx = unconfirmedStore.findIndex(u => u.email?.toLowerCase() === normalizedEmail);
+        if (uIdx !== -1) unconfirmedStore[uIdx] = pendingUser;
+        else unconfirmedStore.push(pendingUser);
+        setStored(STORAGE_KEYS.UNCONFIRMED, unconfirmedStore);
 
         // Cache pending user details in sessionStorage during verification
         sessionStorage.setItem(`nodevault_pending_${normalizedEmail}`, JSON.stringify(pendingUser));
@@ -807,8 +968,15 @@ export const dbAuth = {
       subNodes: 0,
       kycStatus: 'unverified',
       joinDate: new Date().toISOString().split('T')[0],
-      status: 'active',
+      status: 'unconfirmed',
     };
+
+    // Save to UNCONFIRMED store so email status checks work
+    const unconfirmedStore2 = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+    const uIdx2 = unconfirmedStore2.findIndex(u => u.email?.toLowerCase() === normalizedEmail);
+    if (uIdx2 !== -1) unconfirmedStore2[uIdx2] = pendingUser;
+    else unconfirmedStore2.push(pendingUser);
+    setStored(STORAGE_KEYS.UNCONFIRMED, unconfirmedStore2);
 
     sessionStorage.setItem(`nodevault_pending_${normalizedEmail}`, JSON.stringify(pendingUser));
     sessionStorage.setItem(`nodevault_otp_${normalizedEmail}`, demoCode);
@@ -1045,7 +1213,21 @@ export const dbAuth = {
     }
 
     if (!found) {
+      // Check if email is in the unconfirmed queue
+      const unconfirmedList = getStored(STORAGE_KEYS.UNCONFIRMED, []);
+      const unconfirmedMatch = unconfirmedList.find(u =>
+        u.email?.toLowerCase() === query ||
+        (u.phone && u.phone.replace(/\s+/g, '') === query.replace(/\s+/g, ''))
+      );
+      if (unconfirmedMatch) {
+        throw new Error('ACCOUNT_UNCONFIRMED:' + unconfirmedMatch.email);
+      }
       throw new Error('Account not found with this email or phone number.');
+    }
+
+    // Block login if account status is unconfirmed
+    if (found.status === 'unconfirmed') {
+      throw new Error('ACCOUNT_UNCONFIRMED:' + found.email);
     }
 
     // In demo/test environment or if password matches
@@ -2099,6 +2281,379 @@ export const dbNetwork = {
 // and system-wide metrics.
 // ────────────────────────────────────────────────────────────
 
+export const DEFAULT_PLATFORM_MODULES = [
+  {
+    id: 'kyc_verification',
+    name: 'KYC Verification',
+    enabled: true,
+    status: 'active', // 'active' | 'maintenance' | 'paused'
+    description: 'Statutory identity verification, BVN/NIN validation & proof-of-residence desk.',
+    lastUpdated: '2026-11-15T10:00:00Z',
+    updatedBy: 'Compliance Desk'
+  },
+  {
+    id: 'payouts_bank',
+    name: 'Payout & Bank Accounts',
+    enabled: true,
+    status: 'active',
+    description: 'Commercial bank linking, NIP clearing network & automatic daily dividend payouts.',
+    lastUpdated: '2026-11-15T10:00:00Z',
+    updatedBy: 'Treasury Officer'
+  },
+  {
+    id: 'capital_refund',
+    name: 'Capital Refund & Claims',
+    enabled: true,
+    status: 'active',
+    description: '100% statutory return on maturity & early node unbundling settlement desk.',
+    lastUpdated: '2026-11-15T10:00:00Z',
+    updatedBy: 'Super Admin'
+  },
+  {
+    id: 'dividends_payout',
+    name: 'Dividends & Payouts',
+    enabled: true,
+    status: 'active',
+    description: 'Daily sovereign APY yield calculation, compounding and wallet crediting engine.',
+    lastUpdated: '2026-11-15T10:00:00Z',
+    updatedBy: 'Protocol Engine'
+  },
+  {
+    id: 'subnode_network',
+    name: 'Sub-Node Network',
+    enabled: true,
+    status: 'active',
+    description: 'Binary matrix, sponsor tracking, active stake gating & affiliate commission engine.',
+    lastUpdated: '2026-11-15T10:00:00Z',
+    updatedBy: 'Super Admin'
+  },
+  {
+    id: 'node_mining',
+    name: 'Node Mining',
+    enabled: true,
+    status: 'active',
+    description: 'Free WebAssembly SHA-256 block mining terminal & NVT token minting engine.',
+    lastUpdated: '2026-11-15T10:00:00Z',
+    updatedBy: 'Mining Coordinator'
+  }
+];
+
+// ────────────────────────────────────────────────────────────
+// GRANULAR ANDROID-STYLE PERMISSION SYSTEM & SECURITY POLICIES
+// Grouped permissions with sub-permissions (read, write, create, delete, manage)
+// and customizable password enforcement policies per action.
+// ────────────────────────────────────────────────────────────
+
+export const PERMISSION_GROUPS = [
+  {
+    groupId: 'users',
+    name: 'Validators & User Profiles',
+    icon: '👥',
+    description: 'Validator accounts, personal data, staked nodes, and financial ledgers',
+    permissions: [
+      { key: 'users.read', label: 'Read Profiles', type: 'read', desc: 'View validator profiles, contact info, and registration history', defaultRequirePassword: false },
+      { key: 'users.write', label: 'Write Profile Details', type: 'write', desc: 'Edit validator phone, name, and regional settings', defaultRequirePassword: true },
+      { key: 'users.freeze', label: 'Freeze / Suspend Account', type: 'manage', desc: 'Place administrative freeze on validator staking and withdrawals', defaultRequirePassword: true },
+      { key: 'users.points', label: 'Credit / Debit Points & NVT', type: 'write', desc: 'Allocate or deduct NVT tokens, points, or NGN balances', defaultRequirePassword: true },
+      { key: 'users.delete', label: 'Delete Validator Record', type: 'delete', desc: 'Permanently purge validator account from active registry', defaultRequirePassword: true },
+    ]
+  },
+  {
+    groupId: 'tiers',
+    name: 'Genesis Protocol Tiers',
+    icon: '🏷️',
+    description: '15 validator node tier definitions, staking entry fees, and pool capacities',
+    permissions: [
+      { key: 'tiers.read', label: 'Read Tier Registry', type: 'read', desc: 'View active tier schedules, statutory floors, and margins', defaultRequirePassword: false },
+      { key: 'tiers.create', label: 'Create New Tier', type: 'create', desc: 'Establish new Genesis validator tier positions', defaultRequirePassword: true },
+      { key: 'tiers.write', label: 'Write / Edit Tier Specs', type: 'write', desc: 'Modify entry fees, category, color, and max pool limits', defaultRequirePassword: true },
+      { key: 'tiers.toggle', label: 'Toggle Staking Status', type: 'manage', desc: 'Enable or disable public staking on any tier', defaultRequirePassword: true },
+      { key: 'tiers.delete', label: 'Delete / Purge Tier', type: 'delete', desc: 'Permanently remove a node tier from the platform', defaultRequirePassword: true },
+    ]
+  },
+  {
+    groupId: 'roles',
+    name: 'Roles & Access Control',
+    icon: '🛡️',
+    description: 'Administrative roles, permission assignment, and privilege escalation',
+    permissions: [
+      { key: 'roles.read', label: 'Read Roles Matrix', type: 'read', desc: 'View role definitions and user privilege assignments', defaultRequirePassword: false },
+      { key: 'roles.create', label: 'Create Custom Role', type: 'create', desc: 'Define new administrative roles with custom permissions', defaultRequirePassword: true },
+      { key: 'roles.write', label: 'Write Role Permissions', type: 'write', desc: 'Modify permissions and security levels of existing roles', defaultRequirePassword: true },
+      { key: 'roles.delegate_permissions', label: 'Edit & Delegate Role Permissions', type: 'manage', desc: 'Allows modifying permissions of other roles, requiring Admin Confirmation or Time-Limited Access Passcode', defaultRequirePassword: true },
+      { key: 'roles.assign', label: 'Assign Role to User', type: 'manage', desc: 'Elevate validator to admin or change administrative roles', defaultRequirePassword: true },
+      { key: 'roles.delete', label: 'Delete Custom Role', type: 'delete', desc: 'Remove non-system administrative roles', defaultRequirePassword: true },
+    ]
+  },
+  {
+    groupId: 'modules',
+    name: 'Platform Feature Controls',
+    icon: '⚙️',
+    description: 'Core subsystem switches: KYC, Payouts, Claims, Dividends, Network, Mining',
+    permissions: [
+      { key: 'modules.read', label: 'Read Module Telemetry', type: 'read', desc: 'Inspect operational health and uptime of core engines', defaultRequirePassword: false },
+      { key: 'modules.toggle', label: 'Toggle Module Status', type: 'manage', desc: 'Turn ON or OFF any core protocol subsystem', defaultRequirePassword: true },
+      { key: 'modules.configure', label: 'Configure Operational Mode', type: 'write', desc: 'Switch modules into Maintenance, Live, or Paused modes', defaultRequirePassword: true },
+    ]
+  },
+  {
+    groupId: 'kyc',
+    name: 'KYC Identity Verification',
+    icon: '🪪',
+    description: 'Government NIN, International Passports, and statutory compliance auditing',
+    permissions: [
+      { key: 'kyc.read', label: 'Read Submitted Documents', type: 'read', desc: 'Inspect uploaded government IDs, BVN, and proofs of identity', defaultRequirePassword: false },
+      { key: 'kyc.approve', label: 'Approve & Clear Identity', type: 'manage', desc: 'Verify validator KYC and unlock full staking capacity', defaultRequirePassword: true },
+      { key: 'kyc.reject', label: 'Reject Identity Submission', type: 'manage', desc: 'Reject invalid ID submissions with compliance reason', defaultRequirePassword: false },
+    ]
+  },
+  {
+    groupId: 'payouts',
+    name: 'Withdrawal & Treasury Audit',
+    icon: '⚖️',
+    description: 'Multi-sig liquidity audit queue and commercial NIP bank disbursements',
+    permissions: [
+      { key: 'payouts.read', label: 'Read Withdrawal Queue', type: 'read', desc: 'Inspect pending capital claims, bank details, and timestamps', defaultRequirePassword: false },
+      { key: 'payouts.clear_audit', label: 'Clear Multi-Sig Audit', type: 'manage', desc: 'Approve statutory AML and high-value compliance clearance', defaultRequirePassword: true },
+      { key: 'payouts.disburse', label: 'Disburse NIP Bank Payout', type: 'manage', desc: 'Execute automated commercial bank settlement transfer', defaultRequirePassword: true },
+    ]
+  },
+  {
+    groupId: 'rates',
+    name: 'Sovereign APY Yield Desk',
+    icon: '📈',
+    description: 'Central Bank of Nigeria (CBN) 364D Treasury Bill stop rate benchmark',
+    permissions: [
+      { key: 'rates.read', label: 'Read Auction Staging', type: 'read', desc: 'View auction rates, true yield formulas, and fee staging', defaultRequirePassword: false },
+      { key: 'rates.broadcast', label: 'Broadcast Customer APY', type: 'manage', desc: 'Approve and deploy live sovereign benchmark customer rate', defaultRequirePassword: true },
+    ]
+  },
+  {
+    groupId: 'audit',
+    name: 'System Audit Logs',
+    icon: '📜',
+    description: 'Tamper-proof administrative change logs and security incident telemetry',
+    permissions: [
+      { key: 'audit.read', label: 'Read Audit Records', type: 'read', desc: 'Search and inspect immutable timestamped platform actions', defaultRequirePassword: false },
+      { key: 'audit.export', label: 'Export Audit Logs', type: 'manage', desc: 'Download complete system audit trail as JSON or CSV', defaultRequirePassword: false },
+      { key: 'audit.clear', label: 'Clear Audit Cache', type: 'delete', desc: 'Reset audit log store (Restricted to Root Super Admin)', defaultRequirePassword: true },
+    ]
+  },
+  {
+    groupId: 'database',
+    name: 'Database Vault & Cloud',
+    icon: '🗄️',
+    description: 'Enterprise Supabase Postgres cluster credentials and connection monitoring',
+    permissions: [
+      { key: 'db.read', label: 'Read Vault Credentials', type: 'read', desc: 'Inspect database host URL and public anonymous gateway keys', defaultRequirePassword: false },
+      { key: 'db.test', label: 'Execute Ping Connection', type: 'manage', desc: 'Test live heartbeat to Supabase PostgreSQL cluster', defaultRequirePassword: false },
+    ]
+  }
+];
+
+// Flat list of all sub-permission keys
+export const ALL_SUB_PERMISSION_KEYS = PERMISSION_GROUPS.flatMap(g => g.permissions.map(p => p.key));
+
+// Default security policies mapping: which actions require master password confirmation
+export const DEFAULT_SECURITY_POLICIES = PERMISSION_GROUPS.reduce((acc, g) => {
+  g.permissions.forEach(p => {
+    acc[p.key] = p.defaultRequirePassword;
+  });
+  return acc;
+}, {});
+
+// Helper to determine if a role has a given sub-permission
+export const hasSubPermission = (role, permKey) => {
+  if (!role || !role.permissions) return false;
+  if (role.id === 'super_admin' || role.permissions.includes('*')) return true;
+  if (role.permissions.includes(permKey)) return true;
+  
+  // Category wildcard (e.g. 'users.*')
+  const prefix = permKey.split('.')[0];
+  if (role.permissions.includes(`${prefix}.*`)) return true;
+
+  // Backward compatibility with legacy permission strings
+  const legacyMap = {
+    'users.read': 'view_users',
+    'users.write': 'edit_users',
+    'users.points': 'assign_points',
+    'tiers.read': 'manage_tiers',
+    'tiers.create': 'manage_tiers',
+    'tiers.write': 'manage_tiers',
+    'tiers.toggle': 'manage_tiers',
+    'tiers.delete': 'manage_tiers',
+    'roles.read': 'manage_roles',
+    'roles.create': 'manage_roles',
+    'roles.write': 'manage_roles',
+    'roles.delegate_permissions': 'manage_roles',
+    'roles.assign': 'manage_roles',
+    'roles.delete': 'manage_roles',
+    'modules.read': 'manage_modules',
+    'modules.toggle': 'manage_modules',
+    'modules.configure': 'manage_modules',
+    'kyc.read': 'review_kyc',
+    'kyc.approve': 'review_kyc',
+    'kyc.reject': 'review_kyc',
+    'payouts.read': 'disburse_payouts',
+    'payouts.clear_audit': 'disburse_payouts',
+    'payouts.disburse': 'disburse_payouts',
+    'rates.read': 'broadcast_rates',
+    'rates.broadcast': 'broadcast_rates',
+    'audit.read': 'view_audit_logs',
+    'audit.export': 'view_audit_logs',
+  };
+
+  if (legacyMap[permKey] && role.permissions.includes(legacyMap[permKey])) return true;
+  return false;
+};
+
+export const DEFAULT_ROLES = [
+  {
+    id: 'super_admin',
+    name: 'Super Administrator',
+    badge: '👑 Root Admin',
+    color: '#facc15',
+    isSystem: true,
+    description: 'Unrestricted master access across all treasury, compliance, tiers, and protocol subsystems.',
+    permissions: ALL_SUB_PERMISSION_KEYS,
+  },
+  {
+    id: 'compliance_officer',
+    name: 'Chief Compliance Officer',
+    badge: '🪪 Compliance',
+    color: '#38bdf8',
+    isSystem: true,
+    description: 'KYC identity verification, AML fraud prevention, account freezes, and validator audits.',
+    permissions: [
+      'users.read',
+      'users.write',
+      'users.freeze',
+      'kyc.read',
+      'kyc.approve',
+      'kyc.reject',
+      'audit.read'
+    ]
+  },
+  {
+    id: 'treasury_officer',
+    name: 'Treasury & Liquidity Officer',
+    badge: '🏦 Treasury',
+    color: '#00ff94',
+    isSystem: true,
+    description: 'Multi-sig withdrawal audit clearance, sovereign APY benchmark rates, and capital disbursements.',
+    permissions: [
+      'users.read',
+      'payouts.read',
+      'payouts.clear_audit',
+      'payouts.disburse',
+      'rates.read',
+      'rates.broadcast',
+      'audit.read'
+    ]
+  },
+  {
+    id: 'support_specialist',
+    name: 'Operations & Support Specialist',
+    badge: '🎧 Support',
+    color: '#a78bfa',
+    isSystem: false,
+    description: 'User ticket resolution, profile inspection, and goodwill points/NVT bonus allocation.',
+    permissions: [
+      'users.read',
+      'users.points',
+      'kyc.read',
+      'audit.read'
+    ]
+  },
+  {
+    id: 'statutory_auditor',
+    name: 'Statutory Regulatory Auditor',
+    badge: '⚖️ Auditor',
+    color: '#94a3b8',
+    isSystem: true,
+    description: 'Read-only audit inspection across all validator registries, escrow pools, and tamper-proof logs.',
+    permissions: [
+      'users.read',
+      'tiers.read',
+      'roles.read',
+      'modules.read',
+      'kyc.read',
+      'payouts.read',
+      'rates.read',
+      'audit.read',
+      'audit.export',
+      'db.read'
+    ]
+  }
+];
+
+export const DEFAULT_TIME_LIMITED_PASSCODES = [
+  {
+    id: 'PASSCODE-INIT-01',
+    code: 'NV-AUTH-8842',
+    issuedTo: 'Chief Compliance Officer',
+    roleId: 'compliance_officer',
+    issuedBy: 'Super Administrator',
+    issuedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 55 * 60 * 1000).toISOString(),
+    durationMinutes: 60,
+    purpose: 'Temporary permission delegation for compliance audit upgrade',
+    status: 'active', // 'active' | 'used' | 'expired' | 'revoked'
+    usedAt: null,
+  }
+];
+
+export const INITIAL_AUDIT_LOGS = [
+  {
+    id: 'AUDIT-INIT-001',
+    timestamp: '2026-11-15T18:30:00Z',
+    adminName: 'Chief Compliance Officer',
+    adminEmail: 'admin@nodevault.io',
+    category: 'SOVEREIGN_RATE',
+    action: 'RATE_DEPLOYED',
+    target: 'CBN-NTB-364D-2026-W46',
+    details: 'Approved 364D Treasury Bill benchmark @ 15.80% Stop Rate, 6.00% Protocol Fee. Customer APY: 12.70%.',
+    impact: 'HIGH',
+    ipAddress: '102.89.34.120 (Lagos, NG)'
+  },
+  {
+    id: 'AUDIT-INIT-002',
+    timestamp: '2026-11-15T14:15:00Z',
+    adminName: 'Super Administrator',
+    adminEmail: 'admin@nodevault.io',
+    category: 'MODULE',
+    action: 'MODULES_ARMED',
+    target: 'Core Engine (6/6 Modules)',
+    details: 'Verified all 6 platform switches: KYC, Payouts, Capital Refunds, Dividends, Sub-Node Network, Node Mining.',
+    impact: 'MEDIUM',
+    ipAddress: '102.89.34.120 (Lagos, NG)'
+  },
+  {
+    id: 'AUDIT-INIT-003',
+    timestamp: '2026-11-15T11:00:00Z',
+    adminName: 'Super Administrator',
+    adminEmail: 'admin@nodevault.io',
+    category: 'TIER',
+    action: 'TIER_REGISTRY_SYNC',
+    target: '15 Protocol Tiers',
+    details: 'Calibrated 15 validator tiers from Tier 1 (₦1,000 Micro Node) to Tier 15 (₦2,560,000 Genesis Supreme). 100% Principal Protection active.',
+    impact: 'LOW',
+    ipAddress: '102.89.34.120 (Lagos, NG)'
+  },
+  {
+    id: 'AUDIT-INIT-004',
+    timestamp: '2026-11-15T09:40:00Z',
+    adminName: 'Chief Compliance Officer',
+    adminEmail: 'admin@nodevault.io',
+    category: 'SECURITY',
+    action: 'SECURITY_PASSKEY_ARMED',
+    target: 'Cryptographic Salted Hash Engine',
+    details: 'Armed zero-plaintext SHA-256 passkey verification for all high-impact actions.',
+    impact: 'CRITICAL',
+    ipAddress: '102.89.34.120 (Lagos, NG)'
+  }
+];
+
 export const dbAdmin = {
   // Get all users
   async getAllUsers() {
@@ -2207,6 +2762,583 @@ export const dbAdmin = {
       totalRefundsRequested,
       totalRefundsCount: refunds.length,
       kycList: kycs,
+    };
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // TIERS MANAGEMENT ENGINE
+  // ════════════════════════════════════════════════════════════
+  getTiersList() {
+    const custom = getStored(STORAGE_KEYS.TIERS, null);
+    if (Array.isArray(custom) && custom.length > 0) {
+      return custom;
+    }
+    return TIER_DATA_NG;
+  },
+
+  saveTiersList(tiers) {
+    setStored(STORAGE_KEYS.TIERS, tiers);
+    return tiers;
+  },
+
+  async addTier(tierData, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const tiers = [...this.getTiersList()];
+    const nextId = tiers.length > 0 ? Math.max(...tiers.map(t => Number(t.id) || 0)) + 1 : 1;
+    const feeNum = Number(tierData.fee) || 1000;
+    
+    const newTier = {
+      id: nextId,
+      label: tierData.label || `Tier ${nextId}`,
+      name: tierData.name || `Node ${nextId}`,
+      category: tierData.category || 'mid',
+      color: tierData.color || '#00e5ff',
+      fee: feeNum,
+      maxRefundTierA: feeNum,
+      standardPrincipalRefund: feeNum,
+      protocolMargin: parseFloat((feeNum * 0.2284).toFixed(2)),
+      maxPools: Number(tierData.maxPools) || getMaxPools(nextId),
+      singleGroup: tierData.singleGroup !== undefined ? tierData.singleGroup : (nextId >= 6),
+      disabled: false,
+      createdAt: new Date().toISOString()
+    };
+
+    tiers.push(newTier);
+    this.saveTiersList(tiers);
+
+    this.logAdminAction({
+      category: 'TIER',
+      action: 'TIER_CREATED',
+      target: `${newTier.label}: ${newTier.name}`,
+      details: `Created new node tier with entry fee ₦${feeNum.toLocaleString()}, Category: ${newTier.category}, Max Pools: ${newTier.maxPools}.`,
+      impact: 'HIGH',
+      adminName,
+      adminEmail
+    });
+
+    return newTier;
+  },
+
+  async updateTier(tierId, updates, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const tiers = [...this.getTiersList()];
+    const idx = tiers.findIndex(t => Number(t.id) === Number(tierId));
+    if (idx === -1) throw new Error(`Tier ${tierId} not found`);
+
+    const prev = tiers[idx];
+    const feeNum = updates.fee !== undefined ? Number(updates.fee) : prev.fee;
+
+    const updated = {
+      ...prev,
+      ...updates,
+      fee: feeNum,
+      maxRefundTierA: feeNum,
+      standardPrincipalRefund: feeNum,
+      protocolMargin: parseFloat((feeNum * 0.2284).toFixed(2)),
+      maxPools: updates.maxPools !== undefined ? Number(updates.maxPools) : prev.maxPools,
+      updatedAt: new Date().toISOString()
+    };
+
+    tiers[idx] = updated;
+    this.saveTiersList(tiers);
+
+    this.logAdminAction({
+      category: 'TIER',
+      action: 'TIER_MODIFIED',
+      target: `${updated.label}: ${updated.name}`,
+      details: `Modified tier parameters: Fee ₦${prev.fee.toLocaleString()} → ₦${feeNum.toLocaleString()}, Status: ${updated.disabled ? 'Disabled' : 'Active'}.`,
+      impact: 'MEDIUM',
+      adminName,
+      adminEmail
+    });
+
+    return updated;
+  },
+
+  async deleteTier(tierId, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const tiers = [...this.getTiersList()];
+    const target = tiers.find(t => Number(t.id) === Number(tierId));
+    if (!target) throw new Error(`Tier ${tierId} not found`);
+
+    const filtered = tiers.filter(t => Number(t.id) !== Number(tierId));
+    this.saveTiersList(filtered);
+
+    this.logAdminAction({
+      category: 'TIER',
+      action: 'TIER_DELETED',
+      target: `${target.label}: ${target.name}`,
+      details: `Deleted tier (ID: ${tierId}, Fee: ₦${target.fee.toLocaleString()}) from active protocol registry.`,
+      impact: 'CRITICAL',
+      adminName,
+      adminEmail
+    });
+
+    return filtered;
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // ROLES & PERMISSIONS ENGINE
+  // ════════════════════════════════════════════════════════════
+  getRolesList() {
+    const roles = getStored(STORAGE_KEYS.ROLES, null);
+    if (Array.isArray(roles) && roles.length > 0) {
+      return roles;
+    }
+    return DEFAULT_ROLES;
+  },
+
+  saveRolesList(roles) {
+    setStored(STORAGE_KEYS.ROLES, roles);
+    return roles;
+  },
+
+  async createRole(roleData, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const roles = [...this.getRolesList()];
+    const id = roleData.id || roleData.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    
+    if (roles.some(r => r.id === id)) {
+      throw new Error(`Role ID "${id}" already exists`);
+    }
+
+    const newRole = {
+      id,
+      name: roleData.name,
+      badge: roleData.badge || '🛡️ Admin Role',
+      color: roleData.color || '#38bdf8',
+      description: roleData.description || 'Custom administrator role.',
+      isSystem: false,
+      permissions: roleData.permissions || ['view_users'],
+      createdAt: new Date().toISOString()
+    };
+
+    roles.push(newRole);
+    this.saveRolesList(roles);
+
+    this.logAdminAction({
+      category: 'ROLE',
+      action: 'ROLE_CREATED',
+      target: newRole.name,
+      details: `Created custom role with ${newRole.permissions.length} granular permissions: ${newRole.permissions.join(', ')}.`,
+      impact: 'HIGH',
+      adminName,
+      adminEmail
+    });
+
+    return newRole;
+  },
+
+  async updateRole(roleId, updates, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const roles = [...this.getRolesList()];
+    const idx = roles.findIndex(r => r.id === roleId);
+    if (idx === -1) throw new Error(`Role "${roleId}" not found`);
+
+    const updated = {
+      ...roles[idx],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    roles[idx] = updated;
+    this.saveRolesList(roles);
+
+    this.logAdminAction({
+      category: 'ROLE',
+      action: 'ROLE_MODIFIED',
+      target: updated.name,
+      details: `Updated role permissions: ${updated.permissions.join(', ')}.`,
+      impact: 'MEDIUM',
+      adminName,
+      adminEmail
+    });
+
+    return updated;
+  },
+
+  async deleteRole(roleId, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const roles = [...this.getRolesList()];
+    const target = roles.find(r => r.id === roleId);
+    if (!target) throw new Error(`Role "${roleId}" not found`);
+    if (target.isSystem) throw new Error('Cannot delete protected system role');
+
+    const filtered = roles.filter(r => r.id !== roleId);
+    this.saveRolesList(filtered);
+
+    this.logAdminAction({
+      category: 'ROLE',
+      action: 'ROLE_DELETED',
+      target: target.name,
+      details: `Deleted custom role "${target.name}" (${roleId}).`,
+      impact: 'HIGH',
+      adminName,
+      adminEmail
+    });
+
+    return filtered;
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SECURITY POLICIES & ACTION PASSWORD RULES
+  // ════════════════════════════════════════════════════════════
+  getSecurityPolicies() {
+    const custom = getStored(STORAGE_KEYS.SECURITY_POLICIES, null);
+    if (custom && typeof custom === 'object') {
+      return { ...DEFAULT_SECURITY_POLICIES, ...custom };
+    }
+    return DEFAULT_SECURITY_POLICIES;
+  },
+
+  saveSecurityPolicies(policies) {
+    setStored(STORAGE_KEYS.SECURITY_POLICIES, policies);
+    return policies;
+  },
+
+  async togglePasswordPolicy(permissionKey, requiresPassword, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const policies = this.getSecurityPolicies();
+    policies[permissionKey] = Boolean(requiresPassword);
+    this.saveSecurityPolicies(policies);
+
+    this.logAdminAction({
+      category: 'SECURITY',
+      action: 'SECURITY_POLICY_CHANGED',
+      target: permissionKey,
+      details: `Password verification rule for action "${permissionKey}" set to: ${requiresPassword ? 'REQUIRED (Password challenge enforced)' : 'NOT REQUIRED (Fast execution mode)'}.`,
+      impact: 'HIGH',
+      adminName,
+      adminEmail
+    });
+
+    return policies;
+  },
+
+  isPasswordRequired(permissionKey) {
+    const policies = this.getSecurityPolicies();
+    if (permissionKey in policies) {
+      return Boolean(policies[permissionKey]);
+    }
+    return true;
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // TIME-LIMITED ACCESS PASSCODES ENGINE
+  // ════════════════════════════════════════════════════════════
+  getTimeLimitedPasscodes() {
+    const raw = getStored(STORAGE_KEYS.TIME_LIMITED_PASSCODES, null);
+    const list = Array.isArray(raw) && raw.length > 0 ? raw : DEFAULT_TIME_LIMITED_PASSCODES;
+    
+    // Check and flag any expired passcodes automatically
+    const now = Date.now();
+    let hasChanges = false;
+    const checked = list.map(p => {
+      if (p.status === 'active' && new Date(p.expiresAt).getTime() <= now) {
+        hasChanges = true;
+        return { ...p, status: 'expired' };
+      }
+      return p;
+    });
+
+    if (hasChanges) {
+      setStored(STORAGE_KEYS.TIME_LIMITED_PASSCODES, checked);
+    }
+    return checked;
+  },
+
+  saveTimeLimitedPasscodes(list) {
+    setStored(STORAGE_KEYS.TIME_LIMITED_PASSCODES, list);
+    return list;
+  },
+
+  async issueTimeLimitedPasscode({ issuedTo, roleId, durationMinutes = 60, purpose = '', adminName = 'Admin', adminEmail = 'admin@nodevault.io' }) {
+    const list = [...this.getTimeLimitedPasscodes()];
+    const randNum = Math.floor(1000 + Math.random() * 9000);
+    const code = `NV-AUTH-${randNum}`;
+    const now = Date.now();
+    const expiresAt = new Date(now + durationMinutes * 60 * 1000).toISOString();
+
+    const newPasscode = {
+      id: `PASSCODE-${Date.now().toString(36).toUpperCase()}`,
+      code,
+      issuedTo: issuedTo || 'Designated Operator',
+      roleId: roleId || 'compliance_officer',
+      issuedBy: adminName,
+      issuedAt: new Date(now).toISOString(),
+      expiresAt,
+      durationMinutes: Number(durationMinutes),
+      purpose: purpose || 'Temporary permission delegation access',
+      status: 'active',
+      usedAt: null,
+    };
+
+    list.unshift(newPasscode);
+    this.saveTimeLimitedPasscodes(list);
+
+    this.logAdminAction({
+      category: 'SECURITY',
+      action: 'TIME_PASSCODE_ISSUED',
+      target: code,
+      details: `Issued ${durationMinutes}-minute temporary passcode for "${newPasscode.issuedTo}" (Role: ${newPasscode.roleId}). Purpose: ${newPasscode.purpose}. Expires: ${new Date(expiresAt).toLocaleTimeString()}.`,
+      impact: 'HIGH',
+      adminName,
+      adminEmail
+    });
+
+    return newPasscode;
+  },
+
+  verifyTimeLimitedPasscode(inputCode) {
+    if (!inputCode || typeof inputCode !== 'string') return { valid: false, reason: 'Invalid passcode format' };
+    const clean = inputCode.trim().toUpperCase();
+    const list = this.getTimeLimitedPasscodes();
+    const found = list.find(p => p.code.toUpperCase() === clean);
+
+    if (!found) {
+      return { valid: false, reason: 'Passcode not found in security registry' };
+    }
+    if (found.status === 'revoked') {
+      return { valid: false, reason: 'Passcode was administratively revoked' };
+    }
+    if (found.status === 'used') {
+      return { valid: false, reason: 'Passcode has already been consumed' };
+    }
+    if (new Date(found.expiresAt).getTime() <= Date.now()) {
+      return { valid: false, reason: 'Passcode has expired' };
+    }
+
+    return { valid: true, passcode: found };
+  },
+
+  async consumeTimeLimitedPasscode(inputCode, actionDetails = '', adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const check = this.verifyTimeLimitedPasscode(inputCode);
+    if (!check.valid) throw new Error(check.reason);
+
+    const list = this.getTimeLimitedPasscodes();
+    const updated = list.map(p => {
+      if (p.id === check.passcode.id) {
+        return {
+          ...p,
+          status: 'used',
+          usedAt: new Date().toISOString(),
+          consumedByAction: actionDetails,
+        };
+      }
+      return p;
+    });
+
+    this.saveTimeLimitedPasscodes(updated);
+
+    this.logAdminAction({
+      category: 'SECURITY',
+      action: 'TIME_PASSCODE_CONSUMED',
+      target: check.passcode.code,
+      details: `Time-limited passcode authorized action: "${actionDetails}". Issued to: ${check.passcode.issuedTo}.`,
+      impact: 'CRITICAL',
+      adminName,
+      adminEmail
+    });
+
+    return check.passcode;
+  },
+
+  async revokeTimeLimitedPasscode(passcodeId, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const list = this.getTimeLimitedPasscodes();
+    const target = list.find(p => p.id === passcodeId);
+    if (!target) throw new Error('Passcode not found');
+
+    const updated = list.map(p => p.id === passcodeId ? { ...p, status: 'revoked', revokedAt: new Date().toISOString() } : p);
+    this.saveTimeLimitedPasscodes(updated);
+
+    this.logAdminAction({
+      category: 'SECURITY',
+      action: 'TIME_PASSCODE_REVOKED',
+      target: target.code,
+      details: `Administratively revoked temporary passcode "${target.code}" prior to scheduled expiration.`,
+      impact: 'HIGH',
+      adminName,
+      adminEmail
+    });
+
+    return updated;
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // PLATFORM MODULES CONTROL
+  // ════════════════════════════════════════════════════════════
+  getPlatformModules() {
+    const modules = getStored(STORAGE_KEYS.MODULES, null);
+    if (Array.isArray(modules) && modules.length > 0) {
+      return modules;
+    }
+    return DEFAULT_PLATFORM_MODULES;
+  },
+
+  async updatePlatformModule(moduleId, updates, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const modules = this.getPlatformModules();
+    const target = modules.find(m => m.id === moduleId);
+    if (!target) throw new Error(`Module "${moduleId}" not found`);
+
+    const updated = modules.map(m => {
+      if (m.id === moduleId) {
+        return {
+          ...m,
+          ...updates,
+          lastUpdated: new Date().toISOString(),
+          updatedBy: adminName
+        };
+      }
+      return m;
+    });
+
+    setStored(STORAGE_KEYS.MODULES, updated);
+
+    this.logAdminAction({
+      category: 'MODULE',
+      action: 'MODULE_TOGGLED',
+      target: target.name,
+      details: `Module status changed: Enabled = ${updates.enabled !== undefined ? updates.enabled : target.enabled}, Mode = ${updates.status || target.status}.`,
+      impact: 'CRITICAL',
+      adminName,
+      adminEmail
+    });
+
+    return updated;
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // AUDIT LOG DESK
+  // ════════════════════════════════════════════════════════════
+  getAuditLogs() {
+    const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, null);
+    if (Array.isArray(logs) && logs.length > 0) {
+      return logs;
+    }
+    return INITIAL_AUDIT_LOGS;
+  },
+
+  logAdminAction({ category, action, target, details, impact = 'MEDIUM', adminName = 'Chief Compliance Officer', adminEmail = 'admin@nodevault.io' }) {
+    const logs = this.getAuditLogs();
+    const newEntry = {
+      id: 'AUDIT-' + Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 4).toUpperCase(),
+      timestamp: new Date().toISOString(),
+      adminName,
+      adminEmail,
+      category, // 'TIER' | 'ROLE' | 'MODULE' | 'POINTS' | 'USER' | 'KYC' | 'PAYOUT' | 'SOVEREIGN_RATE' | 'SECURITY'
+      action,
+      target: target || 'System Parameter',
+      details: details || '',
+      impact, // 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+      ipAddress: '102.89.34.120 (Lagos, NG)',
+    };
+
+    const updated = [newEntry, ...logs].slice(0, 500);
+    setStored(STORAGE_KEYS.AUDIT_LOGS, updated);
+    return newEntry;
+  },
+
+  clearAuditLogs() {
+    setStored(STORAGE_KEYS.AUDIT_LOGS, INITIAL_AUDIT_LOGS);
+    return INITIAL_AUDIT_LOGS;
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // POINT & BALANCE ALLOCATION ENGINE
+  // ════════════════════════════════════════════════════════════
+  async assignPointsToUser(userId, { amount, unit = 'NVT', reason = '', adminName = 'Admin', adminEmail = 'admin@nodevault.io' }) {
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || numAmount === 0) throw new Error('Invalid point amount');
+
+    const users = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS);
+    const u = users.find(x => x.id === userId);
+    if (!u) throw new Error('User not found');
+
+    if (unit === 'NVT' || unit === 'POINTS') {
+      u.referralBalance = Math.max(0, (Number(u.referralBalance) || 0) + numAmount);
+      u.points = Math.max(0, (Number(u.points) || 0) + numAmount);
+    } else if (unit === 'NGN') {
+      u.walletBalance = Math.max(0, (Number(u.walletBalance) || 0) + numAmount);
+    }
+    setStored(STORAGE_KEYS.USERS, users);
+
+    // Sync with currently authenticated user if matching
+    const current = getStored(STORAGE_KEYS.CURRENT_USER, null);
+    if (current && current.id === userId) {
+      if (unit === 'NVT' || unit === 'POINTS') {
+        current.referralBalance = u.referralBalance;
+        current.points = u.points;
+      } else if (unit === 'NGN') {
+        current.walletBalance = u.walletBalance;
+      }
+      setStored(STORAGE_KEYS.CURRENT_USER, current);
+    }
+
+    // Write ledger transaction
+    const txs = getStored(STORAGE_KEYS.TXS, []);
+    txs.unshift({
+      id: 'TX-ADM-' + Date.now().toString(36),
+      userId,
+      type: numAmount > 0 ? 'credit' : 'debit',
+      title: `Administrative Balance Adjustment (${unit})`,
+      amount: unit === 'NGN' ? Math.abs(numAmount) : Math.abs(numAmount) * 10,
+      tokens: unit === 'NVT' || unit === 'POINTS' ? Math.abs(numAmount) : Math.abs(numAmount) / 10,
+      timestamp: new Date().toISOString(),
+      status: 'confirmed',
+      notes: reason || 'Protocol Administrative Point Allocation'
+    });
+    setStored(STORAGE_KEYS.TXS, txs);
+
+    this.logAdminAction({
+      category: 'POINTS',
+      action: 'POINTS_ASSIGNED',
+      target: `${u.name || u.email} (${u.referralCode || userId})`,
+      details: `Adjusted balance: ${numAmount > 0 ? '+' : ''}${numAmount} ${unit}. Reason: ${reason || 'Administrative Grant'}. Parity Value: ₦${(Math.abs(numAmount) * 10).toLocaleString()} NGN.`,
+      impact: Math.abs(numAmount) >= 500 ? 'HIGH' : 'MEDIUM',
+      adminName,
+      adminEmail
+    });
+
+    return u;
+  },
+
+  // Freeze or unfreeze user account
+  async toggleUserFreeze(userId, adminName = 'Admin', adminEmail = 'admin@nodevault.io') {
+    const users = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS);
+    const u = users.find(x => x.id === userId);
+    if (!u) throw new Error('User not found');
+    
+    u.isFrozen = !u.isFrozen;
+    setStored(STORAGE_KEYS.USERS, users);
+
+    this.logAdminAction({
+      category: 'USER',
+      action: u.isFrozen ? 'ACCOUNT_FROZEN' : 'ACCOUNT_UNFROZEN',
+      target: `${u.name || u.email}`,
+      details: u.isFrozen 
+        ? 'Account administratively frozen. Validator cannot withdraw or create new node positions.'
+        : 'Account lock removed. Normal validator privileges restored.',
+      impact: 'HIGH',
+      adminName,
+      adminEmail
+    });
+
+    return u;
+  },
+
+  // Gather full 360-degree user profile for the inspector
+  async getFullUserDetails(userId) {
+    const users = await this.getAllUsers();
+    const u = users.find(x => x.id === userId) || users[0];
+    const kycs = getStored(STORAGE_KEYS.KYC, []);
+    const banks = getStored(STORAGE_KEYS.BANK, []);
+    const refunds = getStored(STORAGE_KEYS.REFUNDS, []);
+    const txs = getStored(STORAGE_KEYS.TXS, []);
+
+    const userKyc = kycs.find(k => k.userId === u.id) || null;
+    const userBank = banks.find(b => b.userId === u.id) || null;
+    const userRefunds = refunds.filter(r => r.userId === u.id);
+    const userTxs = txs.filter(t => t.userId === u.id);
+
+    return {
+      user: u,
+      kyc: userKyc,
+      bank: userBank,
+      refunds: userRefunds,
+      transactions: userTxs
     };
   }
 };

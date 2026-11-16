@@ -43,11 +43,12 @@ export default function KYC() {
           setRecord(rec);
           setFormData(prev => ({
             ...prev,
-            idType: rec.idType || 'nin',
-            idNumber: rec.idNumber || '',
-            dob: rec.dob || '1995-06-15',
-            address: rec.address || '',
-            state: rec.state || '',
+            // Pre-fill from confirmation step — user can edit before final submission
+            idType: rec.idType || prev.idType,
+            idNumber: rec.idNumber || prev.idNumber,
+            dob: rec.dob || prev.dob,
+            address: rec.address || prev.address,
+            state: rec.state || prev.state,
             idFrontUrl: rec.idFrontUrl || null,
             idBackUrl: rec.idBackUrl || null,
             selfieUrl: rec.selfieUrl || null,
@@ -228,6 +229,51 @@ export default function KYC() {
           {step === 1 && (
             <div>
               <h3 style={{ marginBottom: '1.25rem', fontSize: '1.15rem' }}>Personal & Identity Details</h3>
+
+              {/* ✅ BANK NAME MATCH NOTICE — prominent, mandatory visibility */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+                background: 'rgba(250, 204, 21, 0.08)',
+                border: '1.5px solid rgba(250, 204, 21, 0.4)',
+                borderRadius: '12px',
+                padding: '1rem 1.1rem',
+                marginBottom: '1.5rem',
+              }}>
+                <div style={{ fontSize: '1.25rem', flexShrink: 0 }}>⚠️</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#facc15', marginBottom: '0.3rem' }}>
+                    Important: Name Match Requirement
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#d4b96a', lineHeight: 1.6 }}>
+                    The name on your KYC identity document <strong>must exactly match</strong> the name on your linked bank account.
+                    Mismatches will cause your verification to be rejected and payouts to be delayed.
+                  </div>
+                </div>
+              </div>
+
+              {/* Pre-fill notice if data was captured during confirmation */}
+              {formData.idNumber && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  background: 'rgba(0, 229, 255, 0.06)',
+                  border: '1px solid rgba(0, 229, 255, 0.2)',
+                  borderRadius: '8px',
+                  padding: '0.6rem 0.9rem',
+                  marginBottom: '1.25rem',
+                  fontSize: '0.8rem',
+                  color: '#94a3b8',
+                }}>
+                  <span>🪪</span>
+                  <span>
+                    <strong style={{ color: '#00e5ff' }}>Pre-filled from account confirmation.</strong>
+                    {' '}You may review and edit your identity details before submitting for final verification.
+                  </span>
+                </div>
+              )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div>

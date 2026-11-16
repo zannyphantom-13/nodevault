@@ -1,0 +1,35 @@
+{
+  "id": "draft-1794576329908",
+  "auctionCode": "CBN-NTB-364D-2026-W46",
+  "auctionDate": "2026-11-13",
+  "tenorDays": 364,
+  "stopRate": 15.8,
+  "pricePer100": 84.2433,
+  "realYield": 18.76,
+  "protocolFee": 6,
+  "preferredCustomerAPY": 12.76,
+  "calculations": {
+    "tenorDays": 364,
+    "stopRatePct": 15.8,
+    "pricePer100": 84.2433,
+    "realYieldPct": 18.76,
+    "protocolFeePct": 6,
+    "optionA": {
+      "model": "REAL_YIELD_MINUS_FEE",
+      "description": "Fee deducted from Real Yield",
+      "customerApy": 12.76,
+      "netSpreadPer100k": 6000.000000000002
+    },
+    "optionB": {
+      "model": "DISCOUNT_SPREAD",
+      "description": "Fee deducted from Discount Rate",
+      "customerApy": 10.86,
+      "netSpreadPer100k": 7900.000000000002
+    }
+  },
+  "status": "draft",
+  "source": "Central Bank of Nigeria (CBN) / DMO Primary Auction Circular",
+  "requiresApproval": true,
+  "circuitBreakerTriggered": false,
+  "generatedAt": "2026-11-13T13:25:29.910Z"
+}

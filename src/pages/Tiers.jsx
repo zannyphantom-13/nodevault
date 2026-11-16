@@ -2,27 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { formatNaira, formatNairaCompact, isTierAvailable, calculateCheckout, getServerSpecs } from '../data/platform';
+import {
+  IconNodeCube,
+  IconShieldNIBSS,
+  IconLightningNVT,
+  IconBinaryTree,
+  IconBank,
+  IconKYC,
+  IconCheckCircle,
+  IconXCircle,
+  IconLock,
+  IconArrowRight,
+  IconCurrencyNVT,
+} from '../components/icons/IconSet';
 import { notificationService } from '../services/notifications';
 import './Tiers.css';
-
-// ── SVG Icon Set ─────────────────────────────────────────────────────────────
-function IconLock({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </svg>
-  );
-}
-
-function IconShield() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-      <polyline points="9 12 11 14 15 10" />
-    </svg>
-  );
-}
 
 function IconReceipt() {
   return (
@@ -55,45 +49,34 @@ function IconUser() {
   );
 }
 
-function IconBank() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 2 7 22 7 12 2" />
-      <line x1="4" y1="10" x2="4" y2="18" />
-      <line x1="9" y1="10" x2="9" y2="18" />
-      <line x1="15" y1="10" x2="15" y2="18" />
-      <line x1="20" y1="10" x2="20" y2="18" />
-      <rect x="2" y="18" width="20" height="3" />
-    </svg>
-  );
-}
-
-function IconId() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <circle cx="9" cy="10" r="2" />
-      <line x1="15" y1="8" x2="17" y2="8" />
-      <line x1="15" y1="12" x2="17" y2="12" />
-      <path d="M7 16a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4" />
-    </svg>
-  );
-}
-
 export default function Tiers() {
-  const { tierData, region, user, setSelectedTier, dbBank, dbKYC, dbTransactions, updateUserProfile } = useApp();
+  const {
+    tierData,
+    region,
+    user,
+    setSelectedTier,
+    dbBank,
+    dbKYC,
+    dbTransactions,
+    updateUserProfile,
+    formatProjectedValue,
+    projectionMode,
+    sovereignRate,
+  } = useApp();
   const navigate = useNavigate();
   const [hoveredTier, setHoveredTier] = useState(null);
   const [filter, setFilter] = useState('small');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Derive per-tier staking state from user profile
-  const stakedTierIds   = Array.isArray(user?.stakedTierIds)   ? user.stakedTierIds   : [];
-  const graduatedTierIds = Array.isArray(user?.graduatedTierIds) ? user.graduatedTierIds : [];
+  const stakedTierIds = Array.isArray(user?.stakedTierIds) ? user.stakedTierIds : [];
+  const isFirstNodeRegistration = stakedTierIds.length === 0;
 
   // Gatekeeper & Staking Modal State
   const [gateModal, setGateModal] = useState(null); // { type: 'auth' | 'bank' | 'kyc' | 'already_staked', tier }
   const [checkoutTier, setCheckoutTier] = useState(null);
+  const [optInReferral, setOptInReferral] = useState(Boolean(user?.affiliateTrack));
+  const [selectedAffiliateTrack, setSelectedAffiliateTrack] = useState(user?.affiliateTrack || 'mainline');
   const [hasBank, setHasBank] = useState(false);
   const [isStaking, setIsStaking] = useState(false);
   const [agreedTax, setAgreedTax] = useState(false);
@@ -109,8 +92,8 @@ export default function Tiers() {
     }
   }, [user, dbBank]);
 
-  const fmt = formatNaira;
-  const fmtCompact = formatNairaCompact;
+  const fmt = (val) => formatProjectedValue(val);
+  const fmtCompact = (val) => formatProjectedValue(val, true);
 
   const categories = [
     { key: 'small',   label: '🔥 Entry Nodes',     code: 'T01–T05' },
@@ -175,7 +158,12 @@ export default function Tiers() {
     setIsStaking(true);
 
     try {
-      const checkoutCalc = calculateCheckout(checkoutTier.fee, region?.code || 'NG');
+      const checkoutCalc = calculateCheckout(
+        checkoutTier.fee,
+        region?.code || 'NG',
+        isFirstNodeRegistration,
+        optInReferral
+      );
       
       const isOnline = selectedGateway !== 'direct_bank';
       const txStatus = isOnline ? 'success' : 'pending_verification';
@@ -202,14 +190,20 @@ export default function Tiers() {
       const specs = getServerSpecs(highestTierId);
       const newTotalStaked = Number(user.entryFee || 0) + checkoutTier.fee;
 
-      updateUserProfile({
+      const profileUpdates = {
         tier: activeTierDef,
         tierId: highestTierId,
         tierName: activeTierDef.name,
         entryFee: newTotalStaked,
         serverModel: specs.model,
         stakedTierIds: nextStakedTierIds,
-      });
+      };
+
+      if (optInReferral && !user?.affiliateTrack) {
+        profileUpdates.affiliateTrack = selectedAffiliateTrack;
+      }
+
+      updateUserProfile(profileUpdates);
 
       // 3. Dispatch in-app notification
       notificationService.pushNotification(user.id, {
@@ -231,7 +225,9 @@ export default function Tiers() {
     }
   };
 
-  const checkoutCalc = checkoutTier ? calculateCheckout(checkoutTier.fee, region?.code || 'NG') : null;
+  const checkoutCalc = checkoutTier
+    ? calculateCheckout(checkoutTier.fee, region?.code || 'NG', isFirstNodeRegistration, optInReferral)
+    : null;
 
   return (
     <div className="tiers-page">
@@ -246,8 +242,8 @@ export default function Tiers() {
             Explore & Stake <span className="gradient-text-cyan">Validator</span> <span className="gradient-text">Nodes</span>
           </h1>
           <p className="tiers-hero-desc">
-            Stake into high-yield bare-metal validator pools. Earn <strong>12.0% Sovereign APY</strong> backed 
-            by sovereign Treasury Bill reserves, with an automated <strong>70% Capital Guarantee Floor</strong>.
+            Stake into high-yield bare-metal validator pools. Earn <strong>{sovereignRate?.customerAPY || '12.7'}% Sovereign APY</strong> backed 
+            by sovereign Treasury Bill reserves, with <strong>100% Statutory Principal Protection</strong> under Federal NIBSS Policy.
           </p>
 
           {/* Search & Discovery Bar (only.meme launchpad style) */}
@@ -339,7 +335,6 @@ export default function Tiers() {
                 const isSingle      = tier.singleGroup;
                 const available     = isTierAvailable(tier.id);
                 const isActiveStake = available && stakedTierIds.includes(tier.id);
-                const isGraduated   = available && graduatedTierIds.includes(tier.id) && !stakedTierIds.includes(tier.id);
                 const fillPercent   = available ? Math.min(95, 65 + tier.id * 5) : 0;
 
                 return (
@@ -398,7 +393,6 @@ export default function Tiers() {
                         </span>
                         {isSingle && <span className="badge badge-cyan">Single Pool</span>}
                         {tier.category === 'elite' && <span className="badge badge-cyan">Cap Tier</span>}
-                        {isGraduated && <span className="badge badge-green">🎓 Graduate</span>}
                       </div>
                     </div>
 
@@ -438,7 +432,7 @@ export default function Tiers() {
                       <div className="tier-stat">
                         <span className="tier-stat-label">Sovereign APY</span>
                         <span className="tier-stat-value" style={{ color: available ? 'var(--accent-green)' : '#666' }}>
-                          12.0%
+                          {sovereignRate?.customerAPY || '12.7'}%
                         </span>
                       </div>
                       <div className="tier-stat">
@@ -446,13 +440,15 @@ export default function Tiers() {
                         <span className="tier-stat-value">{fmt(tier.maxRefundTierA)}</span>
                       </div>
                       <div className="tier-stat">
-                        <span className="tier-stat-label">Capital Protection</span>
-                        <span className="tier-stat-value">70% (Tier A)</span>
+                        <span className="tier-stat-label">Capital Regulation</span>
+                        <span className="tier-stat-value" style={{ color: 'var(--accent-green)' }}>
+                          100% Principal Return
+                        </span>
                       </div>
                       <div className="tier-stat">
-                        <span className="tier-stat-label">Referral Reserve</span>
+                        <span className="tier-stat-label">Affiliate Rights</span>
                         <span className="tier-stat-value" style={{ color: available ? 'var(--accent-cyan)' : '#666' }}>
-                          30%
+                          15 NVT / 1 NVT
                         </span>
                       </div>
                     </div>
@@ -473,11 +469,7 @@ export default function Tiers() {
                         disabled={!available}
                         style={!available ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
                       >
-                        {!available
-                          ? 'Locked'
-                          : isGraduated
-                            ? `🎓 Re-Stake ${fmt(tier.fee)} ⚡`
-                            : `Stake ${fmt(tier.fee)} ⚡`}
+                        {!available ? 'Locked' : `Stake ${fmt(tier.fee)} ⚡`}
                       </button>
                     )}
                   </div>
@@ -489,10 +481,10 @@ export default function Tiers() {
           {/* 3-Column Note Grid */}
           <div className="tiers-note-grid" style={{ marginTop: '3.5rem' }}>
             <div className="card" style={{ padding: '1.5rem' }}>
-              <div style={{ marginBottom: '0.75rem' }}><IconShield /></div>
-              <h4 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>Capital Protection Guarantee</h4>
+              <div style={{ marginBottom: '0.75rem' }}><IconShieldNIBSS size={24} color="var(--accent-green)" /></div>
+              <h4 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>100% Statutory Principal Protection</h4>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                Tier A guarantees 70% refund of principal if zero yield received. Tier B covers 60% minus prior yield distributions received. Protected by statutory reserves.
+                100% of your staking principal is returned upon scheduled maturity under statutory Federal Government and NIBSS settlement policy. Early exit is supported with graduated discount penalties.
               </p>
             </div>
             <div className="card" style={{ padding: '1.5rem' }}>
@@ -540,8 +532,7 @@ export default function Tiers() {
                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.4rem' }}>Protocol Rule — One Active Node Per Tier</div>
                     <div style={{ fontSize: '0.82rem', color: '#94a3b8', lineHeight: 1.6 }}>
                       Each account can hold <strong style={{ color: '#fff' }}>one active stake per tier</strong> at a time.
-                      Once your current {gateModal.tier.name} node completes its full 255-validator cycle and you graduate,
-                      this tier becomes available for you to re-stake. Your graduation record is permanently preserved.
+                      Yield and interest remain accessible in your dashboard throughout the 364-day cycle. Once a cycle completes or you unbundle, this tier is eligible for re-staking.
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
@@ -577,7 +568,9 @@ export default function Tiers() {
               {/* Type 2: Bank Required */}
               {gateModal.type === 'bank' && (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}><IconBank /></div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+                    <IconBank size={36} color="var(--accent-cyan)" />
+                  </div>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem' }}>Payout Account Required</h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.75rem' }}>
                     You are required to submit your bank account details so the protocol can determine where monthly yield dividends and capital refunds are disbursed.
@@ -591,7 +584,9 @@ export default function Tiers() {
               {/* Type 3: KYC Required */}
               {gateModal.type === 'kyc' && (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}><IconId /></div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+                    <IconKYC size={36} color="var(--accent-green)" />
+                  </div>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem' }}>KYC Verification Required</h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.75rem' }}>
                     In compliance with statutory AML directives, KYC verification must be completed before you are allowed to stake on a node. Once submitted, your validator account is approved for staking.
@@ -650,18 +645,147 @@ export default function Tiers() {
                 </button>
               </div>
 
+              {/* First-Time Referral Program Opt-In & Locked Track Selection */}
+              {isFirstNodeRegistration && !user?.affiliateTrack && (
+                <div style={{ background: 'rgba(0, 229, 255, 0.05)', border: '1px solid rgba(0, 229, 255, 0.25)', borderRadius: 12, padding: '0.85rem 1rem', marginBottom: '1rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={optInReferral}
+                      onChange={(e) => setOptInReferral(e.target.checked)}
+                      style={{ marginTop: '0.2rem', accentColor: 'var(--accent-cyan)', width: 16, height: 16 }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#fff' }}>
+                        Join Referral & Affiliate Program (Optional)
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', lineHeight: 1.45, marginTop: '0.2rem' }}>
+                        Join the Affiliate & Referral Program to earn NVT rewards on each user you refer. Select your reward track below (permanently locked). Leave unchecked for pure independent validator staking.
+                      </div>
+                    </div>
+                  </label>
+
+                  {optInReferral && (
+                    <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                          🔒 Select Your Affiliate Reward Track (Permanently Locked):
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem' }}>
+                        {/* Option 1: One-Time */}
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.6rem',
+                          background: selectedAffiliateTrack === 'one-time' ? 'rgba(0,229,255,0.12)' : 'rgba(255,255,255,0.02)',
+                          border: `1px solid ${selectedAffiliateTrack === 'one-time' ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.08)'}`,
+                          borderRadius: 8,
+                          padding: '0.6rem 0.75rem',
+                          cursor: 'pointer'
+                        }}>
+                          <input
+                            type="radio"
+                            name="affiliateTrack"
+                            value="one-time"
+                            checked={selectedAffiliateTrack === 'one-time'}
+                            onChange={() => setSelectedAffiliateTrack('one-time')}
+                            style={{ marginTop: 2, accentColor: 'var(--accent-cyan)' }}
+                          />
+                          <div style={{ fontSize: '0.78rem' }}>
+                            <strong style={{ color: '#fff' }}>Option 1: One-Time Instant Payout</strong>
+                            <div style={{ color: '#94a3b8', marginTop: 2 }}>
+                              <span style={{ color: '#00ff94', fontWeight: 700 }}>15 NVT points</span> (₦150) per ₦1,000 staked by referred user. Paid immediately upon stake confirmation.
+                            </div>
+                          </div>
+                        </label>
+
+                        {/* Option 2: Mainline */}
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.6rem',
+                          background: selectedAffiliateTrack === 'mainline' ? 'rgba(0,229,255,0.12)' : 'rgba(255,255,255,0.02)',
+                          border: `1px solid ${selectedAffiliateTrack === 'mainline' ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.08)'}`,
+                          borderRadius: 8,
+                          padding: '0.6rem 0.75rem',
+                          cursor: 'pointer'
+                        }}>
+                          <input
+                            type="radio"
+                            name="affiliateTrack"
+                            value="mainline"
+                            checked={selectedAffiliateTrack === 'mainline'}
+                            onChange={() => setSelectedAffiliateTrack('mainline')}
+                            style={{ marginTop: 2, accentColor: 'var(--accent-cyan)' }}
+                          />
+                          <div style={{ fontSize: '0.78rem' }}>
+                            <strong style={{ color: '#fff' }}>Option 2: Mainline Recurring (1000% Cap)</strong>
+                            <div style={{ color: '#94a3b8', marginTop: 2 }}>
+                              <span style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>1 NVT / year</span> per ₦1,000 staked (0.1 NVT upfront + 0.9 NVT deferred at 364D cycle). Max 1000% of your own stake.
+                            </div>
+                          </div>
+                        </label>
+
+                        {/* Option 3: Downline */}
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.6rem',
+                          background: selectedAffiliateTrack === 'downline' ? 'rgba(0,229,255,0.12)' : 'rgba(255,255,255,0.02)',
+                          border: `1px solid ${selectedAffiliateTrack === 'downline' ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.08)'}`,
+                          borderRadius: 8,
+                          padding: '0.6rem 0.75rem',
+                          cursor: 'pointer'
+                        }}>
+                          <input
+                            type="radio"
+                            name="affiliateTrack"
+                            value="downline"
+                            checked={selectedAffiliateTrack === 'downline'}
+                            onChange={() => setSelectedAffiliateTrack('downline')}
+                            style={{ marginTop: 2, accentColor: 'var(--accent-cyan)' }}
+                          />
+                          <div style={{ fontSize: '0.78rem' }}>
+                            <strong style={{ color: '#fff' }}>Option 3: Downline Multi-Tier (1200% Cap)</strong>
+                            <div style={{ color: '#94a3b8', marginTop: 2 }}>
+                              <span style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>0.1 NVT / year</span> per ₦1,000 across network (0.01 NVT upfront + 0.09 NVT deferred at 364D cycle). Max 1200% of your own stake.
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#facc15', marginTop: '0.45rem', lineHeight: 1.4 }}>
+                        ⚠️ <em>Note:</em> Selection is permanent. Upfront (10%) is permanent and never clawed back. Deferred (90%) pays at 364 days if referred node stayed active.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Already enrolled user notice */}
+              {user?.affiliateTrack && (
+                <div style={{ background: 'rgba(0, 229, 255, 0.05)', border: '1px solid rgba(0, 229, 255, 0.25)', borderRadius: 10, padding: '0.65rem 0.85rem', marginBottom: '1rem', fontSize: '0.78rem' }}>
+                  <span style={{ color: '#00ff94', fontWeight: 700 }}>✓ Enrolled Affiliate:</span> Locked to <strong style={{ color: '#fff', textTransform: 'uppercase' }}>{user.affiliateTrack}</strong> reward track.
+                </div>
+              )}
+
               {/* Itemized receipt */}
               <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '1rem', marginBottom: '1.25rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', fontSize: '0.88rem' }}>
                   <span>Staking Principal</span>
                   <strong style={{ color: checkoutTier.color }}>{fmt(checkoutTier.fee)}</strong>
                 </div>
-                {checkoutCalc.referralReserve > 0 && (
+                {checkoutCalc.referralReserve > 0 ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', fontSize: '0.82rem', color: 'var(--accent-cyan)' }}>
-                    <span>30% Network Referral Reserve</span>
-                    <span>{fmt(checkoutCalc.referralReserve)}</span>
+                    <span>Affiliate Program Enrollment</span>
+                    <span>Included (NVT Rewards)</span>
                   </div>
-                )}
+                ) : isFirstNodeRegistration ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', fontSize: '0.82rem', color: '#64748b' }}>
+                    <span>Affiliate Program</span>
+                    <span>Not Enrolled</span>
+                  </div>
+                ) : null}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', fontSize: '0.82rem', color: '#94a3b8' }}>
                   <span>5% Platform OPEX</span>
                   <span>{fmt(checkoutCalc.opexFee)}</span>

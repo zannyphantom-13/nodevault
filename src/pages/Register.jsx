@@ -23,6 +23,11 @@ export default function Register() {
   const [agreed, setAgreed]         = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Real-time email & phone status
+  const [emailStatus, setEmailStatus] = useState(null); // null | 'checking' | 'confirmed' | 'unconfirmed' | 'available'
+  const [phoneStatus, setPhoneStatus] = useState(null); // null | 'taken' | 'available'
+  const [redirectTimer, setRedirectTimer] = useState(null);
+
   // Email Ownership Verification State
   const [pendingVerification, setPendingVerification] = useState(null);
   const [otpCode, setOtpCode]       = useState('');
@@ -30,13 +35,10 @@ export default function Register() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Post-registration onboarding state
-  const [createdUser, setCreatedUser] = useState(null);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-
   const isNG = region?.code === 'NG';
   const isGmail = form.email.toLowerCase().includes('@gmail.com') || form.email.toLowerCase().includes('@googlemail.com');
 
+  // Resend cooldown ticker
   useEffect(() => {
     if (resendCooldown > 0) {
       const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
@@ -44,12 +46,56 @@ export default function Register() {
     }
   }, [resendCooldown]);
 
+  // Real-time email status check
+  useEffect(() => {
+    const email = form.email.trim();
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      setEmailStatus(null);
+      if (redirectTimer) { clearTimeout(redirectTimer); setRedirectTimer(null); }
+      return;
+    }
+    setEmailStatus('checking');
+    const timer = setTimeout(() => {
+      const status = dbAuth.checkEmailStatus(email);
+      setEmailStatus(status);
+      if (status === 'unconfirmed') {
+        // Auto-redirect to confirmation page after 2.5 seconds
+        const redirectT = setTimeout(() => {
+          navigate(`/confirm?email=${encodeURIComponent(email)}`);
+        }, 2500);
+        setRedirectTimer(redirectT);
+      }
+    }, 600);
+    return () => {
+      clearTimeout(timer);
+      if (redirectTimer) { clearTimeout(redirectTimer); setRedirectTimer(null); }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.email]);
+
+  // Real-time phone uniqueness check
+  useEffect(() => {
+    const phone = form.phone.trim();
+    if (!phone) { setPhoneStatus(null); return; }
+    const timer = setTimeout(() => {
+      const taken = dbAuth.checkPhoneExists(phone);
+      setPhoneStatus(taken ? 'taken' : 'available');
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [form.phone, dbAuth]);
+
+  // Clear redirect timer on unmount
+  useEffect(() => () => { if (redirectTimer) clearTimeout(redirectTimer); }, [redirectTimer]);
+
   const validate = () => {
     const e = {};
     if (!form.name.trim())  e.name  = 'Full legal name is required';
     if (!form.email.trim()) e.email = 'Email address is required';
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email address';
+    else if (emailStatus === 'confirmed') e.email = 'This email already exists within our system.';
+    else if (emailStatus === 'unconfirmed') e.email = 'This email is currently within the registration process.';
     if (!form.phone.trim()) e.phone = 'Phone number is required';
+    else if (phoneStatus === 'taken') e.phone = 'This phone number has already been used.';
     if (!form.password) e.password = 'Password is required';
     else if (form.password.length < 6) e.password = 'Password must be at least 6 characters';
     if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords do not match';
@@ -61,7 +107,6 @@ export default function Register() {
     setGoogleLoading(true);
     try {
       await dbAuth.signInWithGoogle();
-      // If demo sandbox fallback returns instantly:
       const current = dbAuth.getCurrentUser();
       if (current) {
         login(current);
@@ -89,8 +134,10 @@ export default function Register() {
         phone: form.phone,
         region: region?.code || 'NG',
         referralCode: form.referral,
-        tier: null, // Node staking happens after Bank & KYC are verified
+        tier: null,
       });
+
+      sessionStorage.setItem('nodevault_pending_email', form.email.trim());
 
       if (res.needsVerification) {
         setPendingVerification({
@@ -103,13 +150,21 @@ export default function Register() {
         return;
       }
 
-      // If user was auto-confirmed
-      notificationService.triggerNewUserOnboarding(res.user);
-      login(res.user);
-      setCreatedUser(res.user);
+      // If auto-confirmed, go straight to confirm page for ID capture
+      navigate(`/confirm?email=${encodeURIComponent(form.email)}`);
       setSubmitting(false);
     } catch (err) {
-      alert(err.message || 'Registration failed. Please check your credentials.');
+      const msg = err.message || '';
+      if (msg === 'EMAIL_CONFIRMED') {
+        setErrors({ email: 'This email already exists within our system.' });
+      } else if (msg === 'EMAIL_UNCONFIRMED') {
+        setErrors({ email: 'This email is currently within the registration process.' });
+        setEmailStatus('unconfirmed');
+      } else if (msg === 'PHONE_TAKEN') {
+        setErrors({ phone: 'This phone number has already been used.' });
+      } else {
+        setErrors({ email: msg });
+      }
       setSubmitting(false);
     }
   };
@@ -124,13 +179,13 @@ export default function Register() {
     setVerifyingOtp(true);
 
     try {
-      const verifiedUser = await dbAuth.verifyEmailOtp({
+      // Verify OTP â€” this confirms email ownership; now we go to ID capture
+      await dbAuth.verifyEmailOtp({
         email: pendingVerification.email,
         token: otpCode.trim(),
       });
-      notificationService.triggerNewUserOnboarding(verifiedUser);
-      login(verifiedUser);
-      setCreatedUser(verifiedUser);
+      // After email is verified, go to /confirm for ID capture step
+      navigate(`/confirm?email=${encodeURIComponent(pendingVerification.email)}`);
     } catch (err) {
       setOtpError(err.message || 'Verification failed. Please check the code and try again.');
     } finally {
@@ -152,185 +207,16 @@ export default function Register() {
     }
   };
 
-  // ══════════════════════════════════════════════════════
-  // ONBOARDING SUCCESS SCREEN (AFTER ACCOUNT CREATION)
-  // ══════════════════════════════════════════════════════
-  if (createdUser) {
-    const emailData = {
-      to: createdUser.email,
-      from: 'compliance@nodevault.io',
-      subject: 'Welcome to NodeVault Protocol — Validator Account Initialized',
-      name: createdUser.name,
-      referralCode: createdUser.referralCode,
-      joinDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-    };
-
-    return (
-      <div className="register-page">
-        <div className="container" style={{ maxWidth: 650 }}>
-          <div className="reg-card card" style={{ textAlign: 'center', padding: '3rem 2.5rem' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>🎉</div>
-            <h1 className="reg-card-title" style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>
-              Account Initialized Successfully!
-            </h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', marginBottom: '1.75rem' }}>
-              Welcome, <strong style={{ color: '#fff' }}>{createdUser.name}</strong>. Your decentralized node operator credentials and referral code <strong style={{ color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>{createdUser.referralCode}</strong> are active.
-            </p>
-
-            {/* Email notification alert banner */}
-            <div
-              style={{
-                background: 'rgba(0, 229, 255, 0.08)',
-                border: '1px solid rgba(0, 229, 255, 0.25)',
-                borderRadius: '12px',
-                padding: '1rem',
-                marginBottom: '2rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                textAlign: 'left',
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#00e5ff' }}>
-                  ✉️ Welcome Email Dispatched
-                </div>
-                <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                  Sent to {createdUser.email} with your onboarding credentials.
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setShowEmailModal(true)}
-              >
-                Read Email
-              </button>
-            </div>
-
-            {/* Mandatory Protocol Onboarding Sequence */}
-            <div style={{ textAlign: 'left', marginBottom: '2.5rem' }}>
-              <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: '#fff' }}>
-                Required Next Steps Before Staking:
-              </h3>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {/* Step 1: Bank Account */}
-                <div
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    padding: '1rem 1.25rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(250, 204, 21, 0.2)', color: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem' }}>
-                      1
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>Submit Payout Bank Account</div>
-                      <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Required so the protocol knows where yield dividends and refunds are deposited.</div>
-                    </div>
-                  </div>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => navigate('/account')}
-                  >
-                    Link Bank →
-                  </button>
-                </div>
-
-                {/* Step 2: KYC Verification */}
-                <div
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    padding: '1rem 1.25rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0, 229, 255, 0.2)', color: '#00e5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem' }}>
-                      2
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>Complete Identity Verification (KYC)</div>
-                      <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>NIN/BVN/Passport & selfie. Approved immediately upon submission.</div>
-                    </div>
-                  </div>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => navigate('/kyc')}
-                  >
-                    Start KYC →
-                  </button>
-                </div>
-
-                {/* Step 3: Staking */}
-                <div
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                    borderRadius: '12px',
-                    padding: '1rem 1.25rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    opacity: 0.8,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem' }}>
-                      3
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>Stake on Genesis Node</div>
-                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Unlocks immediately once Bank and KYC steps are completed.</div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>🔒 Locked</span>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button
-                type="button"
-                className="btn btn-primary btn-full"
-                onClick={() => navigate('/account')}
-              >
-                Continue to Step 1: Link Bank Account →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <WelcomeEmailModal
-          isOpen={showEmailModal}
-          onClose={() => setShowEmailModal(false)}
-          emailData={emailData}
-        />
-      </div>
-    );
-  }
-
-  // ══════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // STEP 2: EMAIL OWNERSHIP VERIFICATION SCREEN
-  // ══════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   if (pendingVerification) {
     return (
       <div className="register-page">
         <div className="container" style={{ maxWidth: 500 }}>
           <div className="reg-card card" style={{ textAlign: 'center', padding: '2.5rem 2rem' }}>
             <div style={{ width: 56, height: 56, margin: '0 auto 1.25rem', borderRadius: '50%', background: 'rgba(0, 229, 255, 0.1)', border: '1px solid rgba(0, 229, 255, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem' }}>
-              🛡️
+              ðŸ›¡ï¸
             </div>
 
             <h1 className="reg-card-title" style={{ fontSize: '1.6rem', marginBottom: '0.4rem' }}>
@@ -343,34 +229,14 @@ export default function Register() {
             </p>
 
             {pendingVerification.demoCode && (
-              <div
-                style={{
-                  background: 'rgba(250, 204, 21, 0.08)',
-                  border: '1px solid rgba(250, 204, 21, 0.3)',
-                  borderRadius: '10px',
-                  padding: '0.75rem',
-                  marginBottom: '1.5rem',
-                  fontSize: '0.82rem',
-                  color: '#facc15',
-                }}
-              >
-                ⚡ <strong>Local Sandbox Mode:</strong> Your verification code is <code style={{ fontSize: '1rem', fontWeight: 800, background: 'rgba(0,0,0,0.4)', padding: '2px 8px', borderRadius: '4px' }}>{pendingVerification.demoCode}</code> (or enter <code style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '4px' }}>123456</code>).
+              <div style={{ background: 'rgba(250, 204, 21, 0.08)', border: '1px solid rgba(250, 204, 21, 0.3)', borderRadius: '10px', padding: '0.75rem', marginBottom: '1.5rem', fontSize: '0.82rem', color: '#facc15' }}>
+                âš¡ <strong>Local Sandbox Mode:</strong> Your verification code is <code style={{ fontSize: '1rem', fontWeight: 800, background: 'rgba(0,0,0,0.4)', padding: '2px 8px', borderRadius: '4px' }}>{pendingVerification.demoCode}</code> (or enter <code style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '4px' }}>123456</code>).
               </div>
             )}
 
             {otpError && (
-              <div
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '10px',
-                  padding: '0.75rem',
-                  marginBottom: '1.25rem',
-                  fontSize: '0.82rem',
-                  color: '#ef4444',
-                }}
-              >
-                ⚠️ {otpError}
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '10px', padding: '0.75rem', marginBottom: '1.25rem', fontSize: '0.82rem', color: '#ef4444' }}>
+                âš ï¸ {otpError}
               </div>
             )}
 
@@ -383,18 +249,11 @@ export default function Register() {
                   type="text"
                   maxLength={6}
                   autoFocus
-                  placeholder="••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={otpCode}
                   onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
                   className="input"
-                  style={{
-                    fontSize: '1.8rem',
-                    textAlign: 'center',
-                    letterSpacing: '0.4em',
-                    fontWeight: 700,
-                    padding: '0.75rem 1rem',
-                    fontFamily: 'monospace',
-                  }}
+                  style={{ fontSize: '1.8rem', textAlign: 'center', letterSpacing: '0.4em', fontWeight: 700, padding: '0.75rem 1rem', fontFamily: 'monospace' }}
                   required
                 />
               </div>
@@ -405,7 +264,7 @@ export default function Register() {
                 style={{ padding: '0.85rem' }}
                 disabled={verifyingOtp || otpCode.length < 6}
               >
-                {verifyingOtp ? 'Verifying Ownership…' : 'Verify & Activate Account →'}
+                {verifyingOtp ? 'Verifying Ownershipâ€¦' : 'Verify & Continue to Identity Capture â†’'}
               </button>
             </form>
 
@@ -414,13 +273,7 @@ export default function Register() {
                 type="button"
                 onClick={handleResendOtp}
                 disabled={resendCooldown > 0}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: resendCooldown > 0 ? '#64748b' : 'var(--accent-cyan)',
-                  cursor: resendCooldown > 0 ? 'default' : 'pointer',
-                  fontWeight: 600,
-                }}
+                style={{ background: 'none', border: 'none', color: resendCooldown > 0 ? '#64748b' : 'var(--accent-cyan)', cursor: resendCooldown > 0 ? 'default' : 'pointer', fontWeight: 600 }}
               >
                 {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend Code'}
               </button>
@@ -439,9 +292,9 @@ export default function Register() {
     );
   }
 
-  // ══════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // STEP 1: ACCOUNT REGISTRATION FORM
-  // ══════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   return (
     <div className="register-page">
       <div className="container" style={{ maxWidth: 540 }}>
@@ -459,7 +312,7 @@ export default function Register() {
             </p>
           </div>
 
-          {/* Google OAuth 1-Click Verification Button */}
+          {/* Google OAuth */}
           <button
             type="button"
             className="btn-google-auth"
@@ -475,7 +328,7 @@ export default function Register() {
             <span>{googleLoading ? 'Connecting to Google...' : 'Continue with Google'}</span>
           </button>
           <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#64748b', marginTop: '0.35rem', marginBottom: '1.25rem' }}>
-            🔒 Instant verified ownership & 1-click account access
+            ðŸ”’ Instant verified ownership & 1-click account access
           </div>
 
           <div className="login-divider" style={{ margin: '1rem 0 1.5rem' }}>
@@ -483,6 +336,7 @@ export default function Register() {
           </div>
 
           <form className="reg-form" onSubmit={handleRegister}>
+            {/* Name */}
             <div className="reg-field">
               <label htmlFor="reg-name">Full Legal Name</label>
               <input
@@ -497,57 +351,91 @@ export default function Register() {
               {errors.name && <span className="reg-error">{errors.name}</span>}
             </div>
 
+            {/* Email */}
             <div className="reg-field">
               <label htmlFor="reg-email">Email Address</label>
-              <input
-                id="reg-email"
-                type="email"
-                className={`input ${errors.email ? 'input-error' : ''}`}
-                placeholder="you@example.com"
-                value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                required
-              />
-              {errors.email && <span className="reg-error">{errors.email}</span>}
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="reg-email"
+                  type="email"
+                  className={`input ${errors.email || emailStatus === 'confirmed' || emailStatus === 'unconfirmed' ? 'input-error' : emailStatus === 'available' ? 'input-valid' : ''}`}
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  required
+                />
+                {emailStatus === 'checking' && (
+                  <div style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.75rem', color: '#64748b' }}>
+                    Checkingâ€¦
+                  </div>
+                )}
+              </div>
 
-              {/* Gmail Ownership Protection Helper Banner */}
-              {isGmail && (
-                <div
-                  style={{
-                    background: 'rgba(66, 133, 244, 0.08)',
-                    border: '1px solid rgba(66, 133, 244, 0.25)',
-                    borderRadius: '8px',
-                    padding: '0.5rem 0.75rem',
-                    marginTop: '0.4rem',
-                    fontSize: '0.78rem',
-                    color: '#93c5fd',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <span>💡</span>
-                  <span>
-                    Using Gmail? You can click <strong>Continue with Google</strong> above to skip manual code entry!
-                  </span>
+              {/* Email status feedback */}
+              {emailStatus === 'confirmed' && (
+                <div className="reg-error" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
+                  â›” This email already exists within our system.
+                  {' '}<Link to="/login" style={{ color: '#00e5ff', fontWeight: 600 }}>Sign In</Link>
                 </div>
+              )}
+              {emailStatus === 'unconfirmed' && (
+                <div style={{
+                  background: 'rgba(250, 204, 21, 0.08)',
+                  border: '1px solid rgba(250, 204, 21, 0.3)',
+                  borderRadius: '8px',
+                  padding: '0.6rem 0.8rem',
+                  marginTop: '0.4rem',
+                  fontSize: '0.8rem',
+                  color: '#facc15',
+                }}>
+                  â³ <strong>This email is currently within the registration process.</strong>
+                  <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '0.76rem' }}>Redirecting to confirmation in 2â€“3 secondsâ€¦</span>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/confirm?email=${encodeURIComponent(form.email)}`)}
+                      style={{ background: 'rgba(250, 204, 21, 0.2)', border: '1px solid rgba(250, 204, 21, 0.4)', borderRadius: '6px', color: '#facc15', fontSize: '0.76rem', fontWeight: 600, padding: '0.2rem 0.6rem', cursor: 'pointer' }}
+                    >
+                      Continue to Confirmation â†’
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Gmail tip */}
+              {isGmail && emailStatus !== 'confirmed' && emailStatus !== 'unconfirmed' && (
+                <div style={{ background: 'rgba(66, 133, 244, 0.08)', border: '1px solid rgba(66, 133, 244, 0.25)', borderRadius: '8px', padding: '0.5rem 0.75rem', marginTop: '0.4rem', fontSize: '0.78rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>ðŸ’¡</span>
+                  <span>Using Gmail? Click <strong>Continue with Google</strong> above to skip manual code entry!</span>
+                </div>
+              )}
+
+              {errors.email && emailStatus !== 'confirmed' && emailStatus !== 'unconfirmed' && (
+                <span className="reg-error">{errors.email}</span>
               )}
             </div>
 
+            {/* Phone */}
             <div className="reg-field">
               <label htmlFor="reg-phone">Phone Number</label>
               <input
                 id="reg-phone"
                 type="tel"
-                className={`input ${errors.phone ? 'input-error' : ''}`}
+                className={`input ${errors.phone || phoneStatus === 'taken' ? 'input-error' : phoneStatus === 'available' && form.phone ? 'input-valid' : ''}`}
                 placeholder={isNG ? '+234 800 000 0000' : '+1 (555) 000-0000'}
                 value={form.phone}
                 onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                 required
               />
-              {errors.phone && <span className="reg-error">{errors.phone}</span>}
+              {phoneStatus === 'taken' && (
+                <span className="reg-error">â›” This phone number has already been used.</span>
+              )}
+              {errors.phone && phoneStatus !== 'taken' && (
+                <span className="reg-error">{errors.phone}</span>
+              )}
             </div>
 
+            {/* Passwords */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div className="reg-field">
                 <label htmlFor="reg-pwd">Password</label>
@@ -588,6 +476,7 @@ export default function Register() {
               </button>
             </div>
 
+            {/* Referral */}
             <div className="reg-field">
               <label htmlFor="reg-referral">Referral Code <span style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
               <input
@@ -600,7 +489,7 @@ export default function Register() {
               />
             </div>
 
-            {/* Terms acceptance checkbox */}
+            {/* Terms */}
             <label className="reg-tax-disclaimer" style={{ marginTop: '0.5rem' }}>
               <input
                 type="checkbox"
@@ -618,9 +507,9 @@ export default function Register() {
               type="submit"
               className="btn btn-primary btn-full"
               style={{ marginTop: '1rem', padding: '0.85rem' }}
-              disabled={submitting}
+              disabled={submitting || emailStatus === 'confirmed' || emailStatus === 'unconfirmed'}
             >
-              {submitting ? 'Verifying Credentials…' : 'Create Account & Verify Email →'}
+              {submitting ? 'Verifying Credentialsâ€¦' : 'Create Account & Verify Email â†’'}
             </button>
 
             <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>

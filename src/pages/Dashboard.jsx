@@ -128,7 +128,25 @@ const NAV_ITEMS = [
 ];
 
 export default function Dashboard() {
-  const { user, mockUser, region, logout, dbStatus, dbBank, dbKYC, dbDocs, dbRefunds, dbTransactions, dbNetwork, dbAuth, updateUserProfile, setUser } = useApp();
+  const {
+    user,
+    mockUser,
+    region,
+    logout,
+    dbStatus,
+    dbBank,
+    dbKYC,
+    dbDocs,
+    dbRefunds,
+    dbTransactions,
+    dbNetwork,
+    dbAuth,
+    updateUserProfile,
+    setUser,
+    formatProjectedValue,
+    projectionMode,
+    sovereignRate,
+  } = useApp();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [linkedBank, setLinkedBank] = useState(null);
@@ -146,7 +164,7 @@ export default function Dashboard() {
 
   const u = user || mockUser;
   const isNG = region?.code === 'NG';
-  const fmt = isNG ? formatNaira : (n) => `$${Number(n).toFixed(2)}`;
+  const fmt = (n) => formatProjectedValue(n);
 
   // Gate & Claim Modals
   const [claimModal, setClaimModal] = useState(null); // { type: 'confirm'|'high_value'|'kyc_gate'|'bank_gate', data }
@@ -1342,9 +1360,9 @@ export default function Dashboard() {
                     </strong>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Protected Reserve Floor</span>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Statutory Principal Floor</span>
                     <strong style={{ color: '#00ff94', fontSize: '0.95rem', display: 'block' }}>
-                      {fmt(Math.round(effectiveStakedAmount * 0.70))}
+                      {fmt(Math.round(effectiveStakedAmount * 1.00))}
                     </strong>
                   </div>
                   <div>
@@ -1363,7 +1381,7 @@ export default function Dashboard() {
                     const nodeShare = effectiveStakedAmount > 0 ? (node.fee / effectiveStakedAmount) : 1;
                     const nodeCoins = (nodeShare * minedNvt).toFixed(2);
                     const nodeCashVal = convertCoinsToCash(nodeCoins, region?.code).cashAmount;
-                    const guaranteedFloor = Math.round(node.fee * 0.70);
+                    const guaranteedFloor = Math.round(node.fee * 1.00);
                     const nodeAddress = `0x${((node.id * 184920491) ^ 0xabcdef).toString(16).padStart(8, '0')}...${((node.id * 77192) % 65535).toString(16)}`;
 
                     return (
@@ -1402,7 +1420,7 @@ export default function Dashboard() {
                             <strong style={{ color: node.color }}>{fmt(node.fee)}</strong>
                           </div>
                           <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.45rem 0.65rem', borderRadius: 8 }}>
-                            <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Protection Floor (70%)</div>
+                            <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Statutory Principal Floor (100%)</div>
                             <strong style={{ color: '#00ff94' }}>{fmt(guaranteedFloor)}</strong>
                           </div>
                           <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.45rem 0.65rem', borderRadius: 8 }}>
@@ -1887,7 +1905,7 @@ export default function Dashboard() {
                   </span>
                 </div>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1rem' }}>
-                  Each staked node is backed by an independent statutory guarantee. Orderly end-of-month exit entitles you to up to 70% of gross capital returned directly to your bank account.
+                  Each staked node is backed by statutory Federal Government and NIBSS settlement policies. Scheduled maturity or orderly exit entitles you to 100% of gross principal returned directly to your bank account (less standard early exit penalties if unbundled prematurely).
                 </p>
 
                 <div className="table-responsive">
@@ -1896,7 +1914,7 @@ export default function Dashboard() {
                       <tr>
                         <th>Node Tier</th>
                         <th>Staked Principal</th>
-                        <th>Guaranteed Exit Floor</th>
+                        <th>Statutory Principal Floor</th>
                         <th>Statutory Status</th>
                         <th>Reserve Backing</th>
                         <th>Actions</th>
@@ -1904,8 +1922,8 @@ export default function Dashboard() {
                     </thead>
                     <tbody>
                       {activeStakedNodes.map(node => {
-                        const floor70 = Math.round(node.fee * 0.70);
-                        const net70 = Math.round(floor70 * 0.97);
+                        const floor100 = Math.round(node.fee * 1.00);
+                        const net100 = Math.round(floor100 * 0.97);
                         return (
                           <tr key={node.id}>
                             <td>
@@ -1921,8 +1939,8 @@ export default function Dashboard() {
                               <strong style={{ color: '#fff' }}>{fmt(node.fee)}</strong>
                             </td>
                             <td>
-                              <strong style={{ color: '#00ff94' }}>{fmt(net70)}</strong>
-                              <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>70% Net Payout</span>
+                              <strong style={{ color: '#00ff94' }}>{fmt(net100)}</strong>
+                              <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>100% Floor (Net)</span>
                             </td>
                             <td>
                               <span className="badge badge-green" style={{ fontSize: '0.68rem' }}>
@@ -2019,7 +2037,7 @@ export default function Dashboard() {
             <h2 className="dash-title">Yield Dividends & Protocol Payouts</h2>
             <p className="dash-subtitle">
               {isNG
-                ? 'Monthly sovereign yield dividends distributed from validator operations (12.0% Sovereign APY).'
+                ? `Monthly sovereign yield dividends distributed from validator operations (${sovereignRate?.customerAPY || '12.7'}% Sovereign APY).`
                 : 'US Protocol: Dividends are not applicable. Upon completion members exit the system.'}
             </p>
 
@@ -2028,7 +2046,7 @@ export default function Dashboard() {
                 <div className="dash-stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
                   <div className="dash-stat-card">
                     <div className="dash-stat-icon">📊</div>
-                    <div className="dash-stat-value" style={{ color: 'var(--accent-green)' }}>12.0%</div>
+                    <div className="dash-stat-value" style={{ color: 'var(--accent-green)' }}>{sovereignRate?.customerAPY || '12.7'}%</div>
                     <div className="dash-stat-label">Current Network APY</div>
                   </div>
                   <div className="dash-stat-card">
@@ -2150,8 +2168,7 @@ export default function Dashboard() {
                   <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎓</div>
                   <h3 style={{ marginBottom: '0.5rem' }}>US Protocol — Clean Exit</h3>
                   <p style={{ color: 'var(--text-secondary)', maxWidth: 420, margin: '0 auto' }}>
-                    Upon completing the full matrix and reaching graduation, US protocol members exit the system entirely.
-                    No ongoing dividends or entitlements after graduation.
+                    Upon completing the 364-day validation cycle, validator members receive their full 100% principal return and accumulated yield dividends.
                   </p>
                 </div>
               </div>
@@ -2202,7 +2219,7 @@ export default function Dashboard() {
                     <span>🌐</span> Sub-Node Binary Matrix
                   </h2>
                   <p style={{ margin: '0.25rem 0 0', color: '#94a3b8', fontSize: '0.85rem' }}>
-                    Strict binary matrix: exactly 2 direct sub-nodes (Left & Right). Subsequent referrals spill over downstream until 255-validator graduation.
+                    Strict binary matrix: exactly 2 direct sub-nodes (Left & Right). Subsequent referrals spill over downstream throughout the 364-day cycle.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -2300,24 +2317,127 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* ── AFFILIATE REWARD ENGINE & ANNUAL CAP HUD ── */}
+              {(() => {
+                const track = u?.affiliateTrack || null;
+                if (!track) return null;
+                const hasActiveStake = effectiveStakedAmount > 0;
+                // Cap: one-time has no cap; mainline = 1000% of stake in NVT; downline = 1200%
+                const capMultiplier = track === 'downline' ? 12 : track === 'one-time' ? Infinity : 10;
+                const yearlyCapNVT = capMultiplier === Infinity ? Infinity : Math.round((effectiveStakedAmount / 10) * capMultiplier);
+
+                // Simulate earned NVT based on qualified downline volume
+                const qualifiedNodesCount = networkTree?.qualifiedSubNodes ?? 2;
+                const avgStakePerNode = effectiveStakedAmount > 0 && activeStakedNodes.length > 0
+                  ? effectiveStakedAmount / activeStakedNodes.length : 1000;
+                const simulatedVolume = qualifiedNodesCount * avgStakePerNode;
+                const thousandsStaked = simulatedVolume / 1000;
+
+                let permanentNVT = 0;
+                let conditionalNVT = 0;
+
+                if (track === 'one-time') {
+                  permanentNVT = thousandsStaked * 15;
+                  conditionalNVT = 0;
+                } else if (track === 'downline') {
+                  permanentNVT = thousandsStaked * 0.01;
+                  conditionalNVT = thousandsStaked * 0.09;
+                } else {
+                  // mainline
+                  permanentNVT = thousandsStaked * 0.1;
+                  conditionalNVT = thousandsStaked * 0.9;
+                }
+
+                const totalCreditedNVT = permanentNVT + conditionalNVT;
+                const cappedTotal = yearlyCapNVT === Infinity ? totalCreditedNVT : Math.min(yearlyCapNVT, totalCreditedNVT);
+                const capUsedPercent = yearlyCapNVT === Infinity ? 0 : Math.min(100, parseFloat(((cappedTotal / yearlyCapNVT) * 100).toFixed(1)));
+                const remainingCapNVT = yearlyCapNVT === Infinity ? '∞' : Math.max(0, yearlyCapNVT - cappedTotal);
+
+                return (
+                  <div style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(0, 229, 255, 0.3)',
+                    borderRadius: 14,
+                    padding: '1.25rem',
+                    marginBottom: '1.25rem',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <span style={{ fontSize: '1.5rem' }}>⚡</span>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Affiliate Reward Engine · 1 NVT = ₦10.00
+                          </div>
+                          <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>
+                            Track: <span style={{ color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>{track}</span>
+                            <span style={{ fontSize: '0.75rem', color: '#00ff94', marginLeft: '0.5rem', fontWeight: 600 }}>🔒 Locked Option</span>
+                          </h3>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <span className={`badge ${hasActiveStake ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}>
+                          {hasActiveStake ? '✓ Active Node' : '⚠️ Inactive (Rewards Waiting)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Metric Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Total Credited to Balance</div>
+                        <strong style={{ fontSize: '1.05rem', color: '#00ff94', display: 'block' }}>{cappedTotal.toFixed(2)} NVT</strong>
+                        <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Paid to Referral NVT Balance at confirmation</span>
+                      </div>
+                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Permanent Portion (10%)</div>
+                        <strong style={{ fontSize: '1.05rem', color: '#00ff94', display: 'block' }}>{permanentNVT.toFixed(2)} NVT</strong>
+                        <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Never clawed back · repeats every 364D</span>
+                      </div>
+                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Conditional Portion (90%)</div>
+                        <strong style={{ fontSize: '1.05rem', color: 'var(--accent-cyan)', display: 'block' }}>{conditionalNVT.toFixed(2)} NVT</strong>
+                        <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Audited at your 364D tenure end</span>
+                      </div>
+                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                          Annual Cap {track === 'one-time' ? '(No Cap)' : track === 'downline' ? '(1200%)' : '(1000%)'}
+                        </div>
+                        <strong style={{ fontSize: '1.05rem', color: '#fff', display: 'block' }}>
+                          {yearlyCapNVT === Infinity ? '∞' : `${yearlyCapNVT.toLocaleString()} NVT`}
+                        </strong>
+                        <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                          {yearlyCapNVT === Infinity ? 'No annual limit' : `${capUsedPercent}% used · ${typeof remainingCapNVT === 'number' ? remainingCapNVT.toLocaleString() : remainingCapNVT} NVT remaining`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '0.74rem', color: '#94a3b8', lineHeight: 1.6, background: 'rgba(0, 229, 255, 0.04)', padding: '0.6rem 0.75rem', borderRadius: 8 }}>
+                      <div>💰 <strong>Paid at confirmation:</strong> Full reward (permanent + conditional) is credited to your Referral NVT Balance the moment a referred node is confirmed.</div>
+                      <div style={{ marginTop: '0.3rem' }}>📋 <strong>End-of-tenure audit:</strong> At your 364-day cycle end, each referred node is checked. If a node was cancelled during the period, its conditional portion becomes a debt recovered from your Referral NVT Balance only.</div>
+                      <div style={{ marginTop: '0.3rem' }}>⏸️ <strong>Inactive rule:</strong> If your node is inactive, rewards wait — they do not stack. Max 1 waiting portion per referred node regardless of how long you are inactive.</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="binary-network-wrapper">
-                {/* ── 255-NODE GRADUATION CYCLE BANNER ── */}
+                {/* ── 364-DAY VALIDATION CYCLE BANNER ── */}
                 <div className="binary-cycle-banner">
                   <div className="binary-cycle-header">
                     <div className="binary-cycle-title">
                       <span>🏛️</span>
                       <span>
                         {activeNetworkTier
-                          ? `Tier ${activeNetworkTier.id} (${activeNetworkTier.name}) — 255-Validator Cycle Progress`
-                          : `Cycle #${networkTree?.cycleCount || 1} Graduation Progress (${activeStakedNodes.length} Node Tiers Combined)`}
+                          ? `Tier ${activeNetworkTier.id} (${activeNetworkTier.name}) — 364-Day Validation Cycle`
+                          : `Cycle #${networkTree?.cycleCount || 1} Network Performance (${activeStakedNodes.length} Node Tiers Combined)`}
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#00ff94' }}>
                         {displayedCycleNodes} / 255 Validators
                       </span>
-                      <span className={`badge ${activeTierTreeData?.isGraduate || networkTree?.isGraduate ? 'badge-green' : 'badge-cyan'}`}>
-                        {(activeTierTreeData?.isGraduate || networkTree?.isGraduate) ? '✓ Graduated Master Node' : `${displayedCyclePercent}% In-Cycle`}
+                      <span className="badge badge-cyan">
+                        {displayedCyclePercent}% Active Tenure
                       </span>
                     </div>
                   </div>
@@ -2337,7 +2457,7 @@ export default function Dashboard() {
                     <span>Level 5: 62</span>
                     <span>Level 6: 126</span>
                     <span>Level 7: 254</span>
-                    <strong style={{ color: '#00ff94' }}>255 Graduation 🏆</strong>
+                    <strong style={{ color: '#00ff94' }}>255 Target Depth 🏆</strong>
                   </div>
                 </div>
 
@@ -2641,7 +2761,7 @@ export default function Dashboard() {
                     <div>
                       <h3 className="dash-card-title" style={{ margin: 0 }}>Full 255 Matrix Validator Roster</h3>
                       <p style={{ margin: '0.2rem 0 0', color: '#94a3b8', fontSize: '0.8rem' }}>
-                        Complete inventory of all downstream nodes contributing to your graduation cycle.
+                        Complete inventory of all downstream nodes contributing to your affiliate reward network.
                       </p>
                     </div>
                     <span style={{ fontSize: '0.8rem', color: '#00e5ff', fontWeight: 700 }}>
@@ -2757,9 +2877,10 @@ export default function Dashboard() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '0.4rem',
-                            background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                            background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo))',
                             border: 'none',
-                            color: '#fff',
+                            color: '#030712',
+                            fontWeight: 700,
                             textDecoration: 'none'
                           }}
                         >
@@ -2775,7 +2896,7 @@ export default function Dashboard() {
               <div className="dash-card">
                 <h3 className="dash-card-title">Grow Your Binary Network</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '1rem', lineHeight: 1.5 }}>
-                  Because each validator has exactly 2 direct slots, every referral you recruit beyond your first two automatically spills over to fill your sub-nodes' downline. This accelerates your network towards the 255 graduation threshold.
+                  Because each validator has exactly 2 direct slots, every referral you recruit beyond your first two automatically spills over to fill your sub-nodes' downline. This accelerates your network volume and reward accrual.
                 </p>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
@@ -2986,21 +3107,21 @@ export default function Dashboard() {
                   <div style={{ fontSize: '0.68rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cluster Value</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#c4b5fd' }}>{fmt(minedNvt * COIN_RATE_NGN)}</div>
                 </div>
-                <div style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 10, padding: '0.65rem 0.85rem' }}>
+                <div style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: 10, padding: '0.65rem 0.85rem' }}>
                   <div style={{ fontSize: '0.68rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cash Wallet</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fbbf24' }}>{fmt(u?.walletBalance || 0)}</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>{fmt(u?.walletBalance || 0)}</div>
                 </div>
               </div>
             </div>
 
             {/* Feedback toasts */}
             {deskFeedback && (
-              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: 10, fontSize: '0.85rem', background: deskFeedback.type === 'green' ? 'rgba(0,255,148,0.1)' : 'rgba(251,191,36,0.1)', border: `1px solid ${deskFeedback.type === 'green' ? '#00ff94' : '#fbbf24'}`, color: deskFeedback.type === 'green' ? '#00ff94' : '#fbbf24' }}>
+              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: 10, fontSize: '0.85rem', background: deskFeedback.type === 'green' ? 'rgba(0,255,148,0.1)' : 'rgba(0,229,255,0.1)', border: `1px solid ${deskFeedback.type === 'green' ? '#00ff94' : 'var(--accent-cyan)'}`, color: deskFeedback.type === 'green' ? '#00ff94' : 'var(--accent-cyan)' }}>
                 {deskFeedback.text}
               </div>
             )}
             {fuelFeedback && (
-              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: 10, fontSize: '0.85rem', background: fuelFeedback.type === 'green' ? 'rgba(0,255,148,0.1)' : 'rgba(251,191,36,0.1)', border: `1px solid ${fuelFeedback.type === 'green' ? '#00ff94' : '#fbbf24'}`, color: fuelFeedback.type === 'green' ? '#00ff94' : '#fbbf24' }}>
+              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: 10, fontSize: '0.85rem', background: fuelFeedback.type === 'green' ? 'rgba(0,255,148,0.1)' : 'rgba(0,229,255,0.1)', border: `1px solid ${fuelFeedback.type === 'green' ? '#00ff94' : 'var(--accent-cyan)'}`, color: fuelFeedback.type === 'green' ? '#00ff94' : 'var(--accent-cyan)' }}>
                 {fuelFeedback.text}
               </div>
             )}
@@ -3083,11 +3204,11 @@ export default function Dashboard() {
                         </div>
                         <div className="telemetry-cell">
                           <span className="telemetry-label">Cash Value</span>
-                          <span className="telemetry-value" style={{ color: '#fbbf24' }}>{fmt(tokCash)}</span>
+                          <span className="telemetry-value" style={{ color: 'var(--accent-cyan)' }}>{fmt(tokCash)}</span>
                         </div>
                         <div className="telemetry-cell">
                           <span className="telemetry-label">⛽ Fuel Tank</span>
-                          <span className="telemetry-value" style={{ color: (bladeFuel[node.id] ?? 0) >= 1 ? '#4ade80' : (blade.blocksSolved ?? 0) === 0 ? '#fbbf24' : '#f87171', fontWeight: 700 }}>
+                          <span className="telemetry-value" style={{ color: (bladeFuel[node.id] ?? 0) >= 1 ? '#4ade80' : (blade.blocksSolved ?? 0) === 0 ? 'var(--accent-cyan)' : '#f87171', fontWeight: 700 }}>
                             {(bladeFuel[node.id] ?? 0)} u
                           </span>
                         </div>
@@ -3127,7 +3248,7 @@ export default function Dashboard() {
                             transition: 'width 0.4s ease',
                           }} />
                         </div>
-                        <span style={{ fontSize: '0.65rem', color: (bladeFuel[node.id] ?? 0) >= 1 ? '#4ade80' : (blade.blocksSolved ?? 0) === 0 ? '#fbbf24' : '#f87171', fontWeight: 600, minWidth: '28px', textAlign: 'right' }}>
+                        <span style={{ fontSize: '0.65rem', color: (bladeFuel[node.id] ?? 0) >= 1 ? '#4ade80' : (blade.blocksSolved ?? 0) === 0 ? 'var(--accent-cyan)' : '#f87171', fontWeight: 600, minWidth: '28px', textAlign: 'right' }}>
                           {(bladeFuel[node.id] ?? 0) >= 1
                             ? `${bladeFuel[node.id]}u`
                             : (blade.blocksSolved ?? 0) === 0 ? 'NEW' : 'EMPTY'
@@ -3201,9 +3322,9 @@ export default function Dashboard() {
               {fuelFeedback && (
                 <div style={{
                   padding: '0.75rem 1rem', borderRadius: 10, marginBottom: '1rem', fontSize: '0.85rem',
-                  background: fuelFeedback.type === 'green' ? 'rgba(0,255,148,0.08)' : 'rgba(251,191,36,0.08)',
-                  border: `1px solid ${fuelFeedback.type === 'green' ? 'rgba(0,255,148,0.3)' : 'rgba(251,191,36,0.3)'}`,
-                  color: fuelFeedback.type === 'green' ? '#00ff94' : '#fbbf24',
+                  background: fuelFeedback.type === 'green' ? 'rgba(0,255,148,0.08)' : 'rgba(0,229,255,0.08)',
+                  border: `1px solid ${fuelFeedback.type === 'green' ? 'rgba(0,255,148,0.3)' : 'rgba(0,229,255,0.3)'}`,
+                  color: fuelFeedback.type === 'green' ? '#00ff94' : 'var(--accent-cyan)',
                 }}>
                   {fuelFeedback.text}
                 </div>
@@ -3398,7 +3519,7 @@ export default function Dashboard() {
               )}
 
               {deskFeedback && (
-                <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: deskFeedback.type === 'green' ? 'var(--accent-green)' : 'var(--accent-amber)' }}>
+                <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: deskFeedback.type === 'green' ? 'var(--accent-green)' : 'var(--accent-cyan)' }}>
                   {deskFeedback.text}
                 </div>
               )}
@@ -3611,7 +3732,7 @@ export default function Dashboard() {
                     className="btn btn-primary btn-full"
                     onClick={handleConfirmRefundClaim}
                     disabled={isSubmittingClaim}
-                    style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
+                    style={{ background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo))', color: '#030712', fontWeight: 700 }}
                   >
                     {isSubmittingClaim ? 'Queueing Audit...' : 'Submit for Multi-Sig Clearance →'}
                   </button>
@@ -3643,7 +3764,7 @@ export default function Dashboard() {
                   </div>
                   {claimModal.data.penaltyAmount > 0 && (
                     <div className="reg-confirm-row">
-                      <span>Early Penalty (10%)</span>
+                      <span>Early Unbundling Penalty</span>
                       <strong style={{ color: 'var(--accent-red)' }}>−{fmt(claimModal.data.penaltyAmount)}</strong>
                     </div>
                   )}
@@ -3953,7 +4074,7 @@ export default function Dashboard() {
                 </div>
 
                 <div style={{ marginTop: '1.25rem', padding: '0.75rem 1rem', background: 'rgba(0,255,148,0.06)', border: '1px solid rgba(0,255,148,0.2)', borderRadius: '10px', fontSize: '0.82rem', color: '#94a3b8' }}>
-                  <strong style={{ color: '#00ff94' }}>ℹ Binary Spillover:</strong> This node's recruits will auto-fill positions in your downline matrix until the 255 graduation threshold is met.
+                  <strong style={{ color: '#00ff94' }}>ℹ Binary Spillover:</strong> This node's recruits will auto-fill positions in your downline matrix to maximize network reward velocity.
                 </div>
 
                 <button

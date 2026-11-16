@@ -6,6 +6,7 @@ import RegionSelect from './pages/RegionSelect';
 import Landing from './pages/Landing';
 import Tiers from './pages/Tiers';
 import Register from './pages/Register';
+import Confirm from './pages/Confirm';
 import Login from './pages/Login';
 import KYC from './pages/KYC';
 import AccountSettings from './pages/AccountSettings';
@@ -17,7 +18,8 @@ import './App.css';
 
 // Guard: if no region selected, show RegionSelect first
 function RegionGuard({ children }) {
-  const { regionCode } = useApp();
+  const app = useApp();
+  const regionCode = app?.regionCode || 'NG';
   if (!regionCode) return <RegionSelect />;
   return children;
 }
@@ -32,6 +34,7 @@ export default function App() {
               <Route index element={<Landing />} />
               <Route path="/tiers" element={<Tiers />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/confirm" element={<Confirm />} />
               <Route path="/login" element={<Login />} />
               <Route path="/kyc" element={<KYC />} />
               <Route path="/account" element={<AccountSettings />} />

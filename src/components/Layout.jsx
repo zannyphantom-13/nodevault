@@ -1,16 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { formatCurrency } from '../data/platform';
 import NotificationCenter from './NotificationCenter';
 import UserGuideModal from './UserGuideModal';
+import {
+  IconNodeCube,
+  IconShieldNIBSS,
+  IconLightningNVT,
+  IconCompass,
+  IconDashboard,
+  IconSliders,
+  IconWhatsApp,
+  IconTelegram,
+  IconCurrencyNVT,
+  IconArrowRight,
+  IconBank,
+  IconBinaryTree,
+  IconServer,
+  IconKYC,
+} from './icons/IconSet';
 import './Navbar.css';
 
 export default function Layout() {
   const [scrolled, setScrolled]       = useState(false);
   const [menuOpen, setMenuOpen]       = useState(false);
   const [showUserGuide, setShowUserGuide] = useState(false);
-  const { isLoggedIn, user, logout }  = useApp();
+  const {
+    isLoggedIn,
+    user,
+    logout,
+    projectionMode,
+    toggleProjection,
+    formatProjectedValue,
+    sovereignRate,
+  } = useApp();
   const location                      = useLocation();
   const navigate                      = useNavigate();
 
@@ -36,21 +59,23 @@ export default function Layout() {
           <div className="ticker-track">
             <span className="ticker-item"><span className="pulse-dot" /> <strong>MAINNET ONLINE</strong></span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item"><strong className="ticker-cyan">12.0%</strong> SOVEREIGN APY</span>
+            <span className="ticker-item"><strong className="ticker-cyan">{sovereignRate?.customerAPY || '12.7'}%</strong> SOVEREIGN APY (CBN 364D BENCHMARK)</span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item">CAPITAL PROTECTION: <strong className="ticker-green">70% GUARANTEE</strong></span>
+            <span className="ticker-item">STATUTORY POLICY: <strong className="ticker-green">100% PRINCIPAL DISBURSEMENT</strong></span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item">REFERRAL REWARDS: <strong className="ticker-cyan">15% DIRECT OR 1% MAINLINE</strong></span>
+            <span className="ticker-item">AFFILIATE PROGRAM: <strong className="ticker-cyan">15 NVT ONE-TIME · 1 NVT/YR MAINLINE · 0.1 NVT/YR DOWNLINE</strong></span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item">SETTLEMENT: <strong className="ticker-indigo">INSTANT NIBSS & PAYSTACK (₦ NGN)</strong></span>
+            <span className="ticker-item">SETTLEMENT: <strong className="ticker-indigo">INSTANT NIBSS CLEARING (₦ NGN)</strong></span>
+            <span className="ticker-sep">/</span>
+            <span className="ticker-item">PARITY: <strong className="ticker-cyan">1 $NVT = ₦10.00 NGN (1 POINT = 1 NVT)</strong></span>
             <span className="ticker-sep">/</span>
             <span className="ticker-item"><span className="pulse-dot" /> <strong>MAINNET ONLINE</strong></span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item"><strong className="ticker-cyan">12.0%</strong> SOVEREIGN APY</span>
+            <span className="ticker-item"><strong className="ticker-cyan">{sovereignRate?.customerAPY || '12.7'}%</strong> SOVEREIGN APY (CBN 364D BENCHMARK)</span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item">CAPITAL PROTECTION: <strong className="ticker-green">70% GUARANTEE</strong></span>
+            <span className="ticker-item">STATUTORY POLICY: <strong className="ticker-green">100% PRINCIPAL DISBURSEMENT</strong></span>
             <span className="ticker-sep">/</span>
-            <span className="ticker-item">DOWNLINE POOL: <strong className="ticker-cyan">0.1% MAX 7 LEVELS</strong></span>
+            <span className="ticker-item">MAX YEARLY CAP: <strong className="ticker-cyan">1000% MAINLINE · 1200% DOWNLINE</strong></span>
           </div>
         </div>
       </div>
@@ -64,59 +89,94 @@ export default function Layout() {
 
       {/* Navbar */}
       <nav className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
-        <div className="container navbar-inner">
-          {/* Logo & Protocol Badge */}
+        <div className="navbar-inner">
+          {/* Logo & Brand */}
           <div className="navbar-brand-group">
             <NavLink to="/" className="navbar-logo">
               <div className="navbar-logo-icon">
-                <img src="/logo.svg" alt="NodeVault Logo" width="26" height="26" />
+                <IconNodeCube size={22} color="var(--accent-cyan)" />
               </div>
               <div className="navbar-logo-wrap">
                 <span className="navbar-logo-text">
                   NODE<span className="gradient-text-cyan">VAULT</span>
                 </span>
-                <span className="navbar-badge-tag">V2.4</span>
               </div>
             </NavLink>
-
-            <div className="nav-protocol-pill" title="Native NGN Settlement Engine">
-              <span className="flag-icon">🇳🇬</span>
-              <span className="protocol-label">NGN NATIVE</span>
-              <span className="pulse-dot" />
-            </div>
           </div>
 
           {/* Desktop nav links */}
           <div className="navbar-links">
             <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Explore
+              <IconCompass size={14} />
+              <span>Explore</span>
             </NavLink>
             <NavLink to="/tiers" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <span className="nav-tag-badge">15 TIERS</span> Node Tiers
+              <IconNodeCube size={14} />
+              <span>Tiers</span>
+              <span className="nav-tag-badge">15</span>
             </NavLink>
             <NavLink to="/mining" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Mining Terminal ⚡
+              <IconLightningNVT size={14} />
+              <span>Mining</span>
             </NavLink>
             <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Dashboard
+              <IconDashboard size={14} />
+              <span>Dashboard</span>
             </NavLink>
             {isLoggedIn && isAdmin && (
               <NavLink to="/admin" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
-                🛡️ Admin
+                <IconShieldNIBSS size={14} />
+                <span>Admin</span>
               </NavLink>
             )}
           </div>
 
           {/* CTA Buttons & User Profile */}
           <div className="navbar-cta">
-            {/* Interactive User Guide Button */}
+            {/* $NVT Dual Projection Engine Switcher */}
             <button
               type="button"
-              className="btn btn-secondary btn-sm nav-guide-btn"
-              onClick={() => setShowUserGuide(true)}
-              title="Interactive Platform Guide & Walkthrough"
+              className={`nav-projection-toggle ${projectionMode === 'NVT' ? 'active-nvt' : ''}`}
+              onClick={toggleProjection}
+              title={`Switch Currency Projection: Currently ${projectionMode === 'NVT' ? '$NVT (₦10/coin)' : '₦ NGN Live'}`}
             >
-              <span>📖</span> Guide
+              <IconCurrencyNVT size={13} />
+              <span className="projection-label">{projectionMode === 'NVT' ? '$NVT' : '₦ NGN'}</span>
+            </button>
+
+            {/* Official Community Action Icons */}
+            <div className="navbar-community-group">
+              <a
+                href="https://wa.me/2348000000000"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="nav-community-icon-btn nav-wa-btn"
+                title="WhatsApp Support & Community"
+                aria-label="WhatsApp"
+              >
+                <IconWhatsApp size={14} />
+              </a>
+              <a
+                href="https://t.me/NodeVaultBot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="nav-community-icon-btn nav-tg-btn"
+                title="NodeVault Telegram Bot"
+                aria-label="Telegram Bot"
+              >
+                <IconTelegram size={14} />
+              </a>
+            </div>
+
+            {/* Interactive Platform Simulator Button */}
+            <button
+              type="button"
+              className="nav-btn-sim"
+              onClick={() => setShowUserGuide(true)}
+              title="Interactive Platform Simulator & Staking Calculator"
+            >
+              <IconSliders size={13} color="var(--accent-cyan)" />
+              <span className="sim-text">Simulator</span>
             </button>
 
             {/* Notification Bell */}
@@ -132,23 +192,25 @@ export default function Layout() {
                   <span className={`user-status-dot ${kycStatus === 'verified' ? 'verified' : ''}`} />
                   <div className="nav-user-info">
                     <span className="navbar-username">{user?.name?.split(' ')[0]}</span>
-                    <span className="navbar-balance">₦{Number(userBalance || 0).toLocaleString('en-NG')}</span>
+                    <span className="navbar-balance">{formatProjectedValue(userBalance)}</span>
                   </div>
                 </Link>
                 <button
-                  className="btn btn-secondary btn-sm nav-exit-btn"
+                  className="nav-exit-btn"
                   onClick={() => { logout(); navigate('/'); }}
+                  title="Sign Out"
                 >
                   Exit
                 </button>
               </div>
             ) : (
               <div className="nav-auth-actions">
-                <NavLink to="/login" className="btn btn-secondary btn-sm">
+                <NavLink to="/login" className="nav-btn-ghost">
                   Sign In
                 </NavLink>
-                <NavLink to="/register" className="btn btn-sm btn-launch-terminal">
-                  Launch Terminal ⚡
+                <NavLink to="/register" className="nav-btn-launch">
+                  <span>Launch App</span>
+                  <IconArrowRight size={12} />
                 </NavLink>
               </div>
             )}
@@ -169,39 +231,94 @@ export default function Layout() {
           <div className="mobile-protocol-status">
             <div className="mobile-network-indicator">
               <span className="pulse-dot" />
-              <span>NGN Mainnet Protocol (12.0% APY)</span>
+              <span>NIBSS Cleared ({sovereignRate?.customerAPY || '12.7'}% APY)</span>
             </div>
-            <span className="badge badge-cyan">₦ NGN Live</span>
+            <button
+              type="button"
+              className={`nav-projection-toggle ${projectionMode === 'NVT' ? 'active-nvt' : ''}`}
+              onClick={toggleProjection}
+              style={{ fontSize: '0.7rem' }}
+            >
+              <IconCurrencyNVT size={13} />
+              <span>{projectionMode === 'NVT' ? '$NVT' : '₦ NGN'}</span>
+            </button>
           </div>
 
           <NavLink to="/" end className="mobile-link" onClick={() => setMenuOpen(false)}>
-            <span>Explore</span>
-            <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>Home</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <IconCompass size={18} /> Explore
+            </span>
+            <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>Mainnet</span>
           </NavLink>
           <NavLink to="/tiers" className="mobile-link" onClick={() => setMenuOpen(false)}>
-            <span>Node Tiers (15)</span>
-            <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>12% APY</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <IconNodeCube size={18} /> Node Tiers (15)
+            </span>
+            <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>{sovereignRate?.customerAPY || '12.7'}% APY</span>
           </NavLink>
           <NavLink to="/mining" className="mobile-link" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent-cyan)' }}>
-            <span>Mining Terminal</span>
-            <span>⚡</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <IconLightningNVT size={18} /> Mining Terminal
+            </span>
+            <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>Live</span>
           </NavLink>
           <NavLink to="/dashboard" className="mobile-link" onClick={() => setMenuOpen(false)}>
-            <span>Dashboard</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <IconDashboard size={18} /> Dashboard
+            </span>
           </NavLink>
+          <button
+            type="button"
+            className="mobile-link"
+            style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' }}
+            onClick={() => { setMenuOpen(false); setShowUserGuide(true); }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-cyan)' }}>
+              <IconSliders size={18} /> Node Simulator & Guide
+            </span>
+            <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>Interactive</span>
+          </button>
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', padding: '0 0.5rem' }}>
+            <a
+              href="https://wa.me/2348000000000"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="nav-community-btn nav-wa-btn"
+              style={{ flex: 1, justifyContent: 'center' }}
+            >
+              <IconWhatsApp size={16} /> WhatsApp
+            </a>
+            <a
+              href="https://t.me/NodeVaultBot"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="nav-community-btn nav-tg-btn"
+              style={{ flex: 1, justifyContent: 'center' }}
+            >
+              <IconTelegram size={16} /> Telegram
+            </a>
+          </div>
+
           {isLoggedIn ? (
             <>
               <NavLink to="/kyc" className="mobile-link" onClick={() => setMenuOpen(false)}>
-                <span>KYC Verification</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <IconKYC size={18} /> KYC Verification
+                </span>
                 <span className={`badge ${kycStatus === 'verified' ? 'badge-green' : 'badge-cyan'}`}>{kycStatus}</span>
               </NavLink>
               <NavLink to="/account" className="mobile-link" onClick={() => setMenuOpen(false)}>
-                <span>Payout Accounts & Profile</span>
-                <span className="navbar-balance">₦{Number(userBalance || 0).toLocaleString('en-NG')}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <IconBank size={18} /> Payout Accounts
+                </span>
+                <span className="navbar-balance">{formatProjectedValue(userBalance)}</span>
               </NavLink>
               {isAdmin && (
                 <NavLink to="/admin" className="mobile-link" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
-                  <span>🛡️ Admin Panel</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <IconShieldNIBSS size={18} /> Admin Panel
+                  </span>
                 </NavLink>
               )}
               <button
@@ -218,7 +335,7 @@ export default function Layout() {
                 Sign In
               </NavLink>
               <NavLink to="/register" className="btn btn-launch-terminal" onClick={() => setMenuOpen(false)}>
-                Launch Terminal ⚡
+                Launch Terminal
               </NavLink>
             </div>
           )}
@@ -229,42 +346,118 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      {/* Interactive Platform User Guide Modal */}
-      {showUserGuide && (
-        <UserGuideModal onClose={() => setShowUserGuide(false)} />
-      )}
-
-      {/* Footer */}
+      {/* Comprehensive 4-Column Crypto Launchpad Footer */}
       <footer className="footer">
-        <div className="container footer-inner">
-          <div className="footer-brand">
-            <div className="navbar-logo-icon" style={{ width: 28, height: 28 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z" fill="url(#footerGrad)"/>
-                <circle cx="12" cy="12" r="3" fill="rgba(255,255,255,0.9)"/>
-                <defs>
-                  <linearGradient id="footerGrad" x1="0" y1="0" x2="24" y2="24">
-                    <stop offset="0%" stopColor="#6366f1"/>
-                    <stop offset="100%" stopColor="#00e5ff"/>
-                  </linearGradient>
-                </defs>
-              </svg>
+        <div className="footer-inner">
+          <div className="footer-grid">
+            {/* Column 1: Brand & NIBSS Regulation */}
+            <div className="footer-brand-col">
+              <div className="footer-brand-header">
+                <div className="footer-brand-logo">
+                  <IconNodeCube size={22} color="var(--accent-cyan)" />
+                </div>
+                <span className="footer-brand-name">
+                  NODE<span className="gradient-text-cyan">VAULT</span>
+                </span>
+              </div>
+              <p className="footer-brand-tagline">
+                Institutional-grade sovereign validator node infrastructure. Operating under strict Nigerian inter-bank standards with automated NIBSS clearing and 100% statutory capital protection.
+              </p>
+              <div className="footer-nibss-badge">
+                <IconShieldNIBSS size={16} />
+                <span>NIBSS Regulatory Clearing Rail</span>
+              </div>
             </div>
-            <span className="footer-brand-text">NodeVault</span>
+
+            {/* Column 2: Validator Ecosystem */}
+            <div className="footer-col">
+              <h4 className="footer-col-title">
+                <IconServer size={14} color="var(--accent-cyan)" />
+                <span>Validator Rail</span>
+              </h4>
+              <ul className="footer-nav-list">
+                <li><Link to="/tiers" className="footer-nav-link">15 Enterprise Node Tiers</Link></li>
+                <li><Link to="/mining" className="footer-nav-link">Cryptographic Mining Terminal</Link></li>
+                <li><Link to="/dashboard" className="footer-nav-link">Validator Telemetry HUD</Link></li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setShowUserGuide(true)}
+                    className="footer-nav-link"
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    Interactive Node Simulator
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 3: Regulation & Settlement */}
+            <div className="footer-col">
+              <h4 className="footer-col-title">
+                <IconShieldNIBSS size={14} color="var(--accent-green)" />
+                <span>Compliance & Rails</span>
+              </h4>
+              <ul className="footer-nav-list">
+                <li><Link to="/kyc" className="footer-nav-link">AML / Tier-2 KYC Protocol</Link></li>
+                <li><Link to="/account" className="footer-nav-link">NUBAN Banking & Payouts</Link></li>
+                <li><span className="footer-nav-link" style={{ opacity: 0.85 }}>100% Statutory Capital Return</span></li>
+                <li><span className="footer-nav-link" style={{ opacity: 0.85 }}>CBN EMTL Statutory Stamp</span></li>
+              </ul>
+            </div>
+
+            {/* Column 4: Official Community & Bots */}
+            <div className="footer-col">
+              <h4 className="footer-col-title">
+                <IconLightningNVT size={14} color="var(--accent-cyan)" />
+                <span>Official Channels</span>
+              </h4>
+              <a
+                href="https://wa.me/2348000000000"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-community-card"
+              >
+                <div className="footer-community-meta">
+                  <span className="footer-community-name" style={{ color: '#25D366' }}>WhatsApp Desk</span>
+                  <span className="footer-community-status">Direct VIP Support & Clearing</span>
+                </div>
+                <IconArrowRight size={16} color="#25D366" />
+              </a>
+
+              <a
+                href="https://t.me/NodeVaultBot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-community-card"
+              >
+                <div className="footer-community-meta">
+                  <span className="footer-community-name" style={{ color: '#38BDF8' }}>Telegram Bot</span>
+                  <span className="footer-community-status">@NodeVaultBot · Live Yield Alerts</span>
+                </div>
+                <IconArrowRight size={16} color="#38BDF8" />
+              </a>
+            </div>
           </div>
-          <p className="footer-copy">
-            © 2026 NodeVault Protocol. Institutional-grade yield staking infrastructure. 100% Native NGN Settlement.
-          </p>
-          <div className="footer-links">
-            <Link to="/kyc" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>AML / KYC</Link>
-            <span>•</span>
-            <Link to="/account" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Banking & EMTL</Link>
-            <span>•</span>
+
+          {/* Sub-Footer Ribbon */}
+          <div className="footer-ribbon">
+            <div className="footer-ribbon-left">
+              <span>© 2026 NodeVault Protocol Ltd. All rights reserved.</span>
+              <span className="footer-parity-pill">
+                Parity: <strong>1 $NVT = ₦10.00 NGN</strong>
+              </span>
+            </div>
+            <div className="footer-ribbon-right">
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-green)' }}>
+                <span className="pulse-dot" /> NIBSS Inter-Bank Instant Rail Online
+              </span>
+            </div>
           </div>
         </div>
       </footer>
 
-      {/* Interactive Platform User Guide Modal */}
+      {/* Single Interactive Platform User Guide & Node Simulator Modal */}
       <UserGuideModal
         isOpen={showUserGuide}
         onClose={() => setShowUserGuide(false)}

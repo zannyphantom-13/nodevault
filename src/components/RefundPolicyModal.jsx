@@ -49,7 +49,7 @@ export default function RefundPolicyModal({ isOpen, onClose }) {
         }}>
           {[
             { id: 'summary', label: 'Plain-English Summary' },
-            { id: 'tiers', label: 'Protection Tiers (70% & 60%)' },
+            { id: 'tiers', label: '100% Principal Protection' },
             { id: 'multinode', label: 'Multiple Staked Nodes' },
             { id: 'tax', label: 'Fees & Bank Payouts' },
           ].map(tab => (
@@ -82,9 +82,8 @@ export default function RefundPolicyModal({ isOpen, onClose }) {
                   <span>🤝</span> The NodeVault Promise: Your Capital is Protected
                 </h4>
                 <p style={{ margin: 0, fontSize: '0.88rem', color: '#e2e8f0', lineHeight: 1.6 }}>
-                  Unlike open-ended crypto speculations where 100% of your money is at market risk, NodeVault operates an
-                  institutional <strong>Statutory Reserve Fund</strong>. If you decide to exit, the protocol guarantees up to
-                  <strong> 70% of your unrecovered stake directly back into your verified Nigerian bank account</strong>.
+                  Capital protection is governed under statutory Federal Government and NIBSS settlement policies. If you decide to exit, the protocol disburses
+                  <strong> 100% of your staking principal directly back into your verified Nigerian bank account</strong> upon scheduled maturity (less standard operational fees and early unbundling discount charges if exiting prematurely).
                 </p>
               </div>
 
@@ -131,33 +130,33 @@ export default function RefundPolicyModal({ isOpen, onClose }) {
               <div className="refund-grid-2col">
                 <div className="refund-tier-box" style={{ borderColor: 'rgba(0, 255, 148, 0.3)' }}>
                   <span className="badge badge-green" style={{ fontSize: '0.72rem', marginBottom: '0.5rem' }}>
-                    Tier A · Full Protection
+                    Scheduled Maturity
                   </span>
                   <h4 style={{ margin: '0.2rem 0', color: '#fff', fontSize: '1rem' }}>
-                    70% Gross Refund
+                    100% Principal Return
                   </h4>
                   <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
-                    <strong>Condition:</strong> Zero yield received to date.<br />
-                    If you staked and received ₦0 in dividends, you are entitled to a full 70% statutory refund at the end of the month.
+                    <strong>Condition:</strong> 364-day cycle completion or scheduled window.<br />
+                    You receive 100% of your principal back directly to your verified bank account.
                   </p>
                   <div style={{ marginTop: '0.65rem', padding: '0.45rem', background: 'rgba(0,255,148,0.06)', borderRadius: 6, fontSize: '0.78rem', color: '#00ff94' }}>
-                    Example: Stake ₦16,000 → Gross refund is ₦11,200.
+                    Example: Stake ₦16,000 → Gross return is ₦16,000.
                   </div>
                 </div>
 
                 <div className="refund-tier-box" style={{ borderColor: 'rgba(250, 204, 21, 0.3)' }}>
                   <span className="badge badge-amber" style={{ fontSize: '0.72rem', marginBottom: '0.5rem' }}>
-                    Tier B · Partial Protection
+                    Early Unbundling Exit
                   </span>
                   <h4 style={{ margin: '0.2rem 0', color: '#fff', fontSize: '1rem' }}>
-                    Top-Up to 60%
+                    85% – 95% Net Return
                   </h4>
                   <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
-                    <strong>Condition:</strong> Yield received is less than 60% of stake.<br />
-                    The protocol tops up your total recovery so that `Yield Received + Refund` equals 60% of your original principal.
+                    <strong>Condition:</strong> Premature withdrawal before 364 days.<br />
+                    Subject to statutory early exit discount fees: Days 1–30 (15% fee), Days 31–90 (10% fee), Days 91–180 (5% fee).
                   </p>
                   <div style={{ marginTop: '0.65rem', padding: '0.45rem', background: 'rgba(250,204,21,0.06)', borderRadius: 6, fontSize: '0.78rem', color: '#facc15' }}>
-                    Example: Stake ₦16,000, Earned ₦4,200 → Refund is ₦5,400.
+                    Example: Stake ₦16,000 unbundled at Day 45 → 90% net (₦14,400).
                   </div>
                 </div>
               </div>
@@ -208,9 +207,7 @@ export default function RefundPolicyModal({ isOpen, onClose }) {
                   <span>2️⃣</span> How is the guaranteed floor calculated across multiple nodes?
                 </div>
                 <p className="refund-faq-a">
-                  Each node's yield track record is isolated. For instance, if Node #1 earned dividends but Node #2 received zero dividends,
-                  Node #2 qualifies for the full 70% Tier A refund regardless of what Node #1 earned. Or, you can execute a combined fleet liquidation
-                  where your total net unrecovered balance across all active nodes is paid out together.
+                  Each node's liquidation track record is isolated. For instance, if Node #1 is unbundled early at day 45, it receives its 90% net liquidity, while Node #2 continues to run through its 364-day cycle to receive 100% of principal.
                 </p>
               </div>
 

@@ -47,10 +47,10 @@ export default function ProtocolMechanicsModal({ isOpen, onClose }) {
       color: 'var(--accent-green)',
       icon: '⛏️',
       plainEnglish:
-        'Your active node runs cryptographic block verification cycles. Each completed block mints verified $NVT protocol tokens. Our automated Token Liquidity Desk purchases those tokens back at a fixed rate of ₦18.00 per token into your spendable Cash Balance, which you can withdraw to your Nigerian bank anytime.',
+        'Your active node runs cryptographic block verification cycles. Each completed block mints verified $NVT protocol tokens. Our automated Token Liquidity Desk purchases those tokens back at a fixed rate of ₦10.00 per token into your spendable Cash Balance, which you can withdraw to your Nigerian bank anytime.',
       keyMechanics: [
         { label: '1:1 Fuel Mechanics', desc: '1 Block requires 1 Compute Credit + 1 Power Unit to mint 1 verified $NVT token.' },
-        { label: 'Fixed Treasury Parity', desc: 'Tokens have guaranteed floor liquidity of ₦18.00 NGN ($0.012 USD) supported by protocol liquidity pools.' },
+        { label: 'Fixed Treasury Parity', desc: 'Tokens have guaranteed floor liquidity of ₦10.00 NGN ($0.010 USD) supported by protocol liquidity pools.' },
         { label: 'Local Banking Payouts', desc: 'Zero crypto friction. Request withdrawals directly into any verified Nigerian bank account (GTB, Zenith, OPay, etc.).' },
       ],
       proTip: '💡 You can use earned monthly yield dividends to auto-top-up your server fuel units for continuous, compounding block rewards.',
@@ -58,18 +58,18 @@ export default function ProtocolMechanicsModal({ isOpen, onClose }) {
     {
       num: '04',
       phase: 'STATUTORY RESERVE',
-      tag: 'UP TO 70% NET',
-      title: 'Capital Protection Guarantee',
-      color: 'var(--accent-amber)',
+      tag: '100% STATUTORY',
+      title: 'Principal Protection Policy',
+      color: 'var(--accent-green)',
       icon: '🛡️',
       plainEnglish:
-        'NodeVault eliminates the fear of total capital loss. If at any time you wish to exit before recovering your investment, our automated solvency engine refunds up to 70% of your unrecovered principal directly back to your bank account from segregated statutory reserve funds.',
+        'Capital protection is governed under statutory Federal Government and NIBSS settlement policies. If you invest ₦1,000, 100% of your principal (₦1,000) is returned upon scheduled maturity, excluding standard operating deductions (OPEX, VAT, EMTL) and early exit discount fees if unbundled prematurely.',
       keyMechanics: [
-        { label: 'Tier A Full Protection (70%)', desc: 'If you received zero yield dividends, the protocol guarantees a 70% gross refund at the end of the month.' },
-        { label: 'Tier B Partial Protection (60%)', desc: 'If you received partial yield, the protocol tops you up so total distributions equal at least 60% of your principal.' },
-        { label: 'Per-Node Protection', desc: 'Every staked node maintains its own independent warranty. Staking 3 nodes gives you 3 independent safety nets.' },
+        { label: '100% Scheduled Maturity Return', desc: 'Upon completion of the 364-day cycle or scheduled window, your full principal is returned directly to your verified bank account.' },
+        { label: 'Early Unbundling Discount Schedule', desc: 'Premature withdrawals receive between 85% to 95% of principal based on holding tenure (0% to 15% discount penalty).' },
+        { label: 'Per-Node Segregation', desc: 'Every staked node maintains its own independent statutory reserve ledger.' },
       ],
-      proTip: '💡 Standard end-of-month (EOM) requests receive 100% of their statutory refund without any early exit penalties.',
+      proTip: '💡 Yield interest is accessible in your dashboard throughout the 364-day validation tenure.',
     },
   ];
 

@@ -167,7 +167,7 @@ export default function FreeMining() {
     if (energyRef.current >= 1 && processorUsesRef.current >= 1 && !isMiningRef.current) {
       setEnergy(prev        => prev - 1);
       setProcessorUses(prev => prev - 1);
-      const sessionYield = 1.0; // 1 block = 1 $NVT (worth ₦18.00)
+      const sessionYield = 1.0; // 1 block = 1 $NVT (worth ₦10.00)
       setSessionTarget(minedAmountRef.current + sessionYield);
       setIsMining(true);
     }
@@ -276,7 +276,7 @@ export default function FreeMining() {
               <div className="allocation-usd">
                 ≈ ₦{(minedAmount * coinRate).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
-                  (@ ₦18/token parity)
+                  (@ ₦10/token parity)
                 </span>
               </div>
             </div>
@@ -412,7 +412,7 @@ export default function FreeMining() {
             </div>
             <div className="airdrop-info-item">
               <span>Token Parity</span>
-              <strong style={{ color: 'var(--accent-green)' }}>1 $NVT = ₦18.00</strong>
+              <strong style={{ color: 'var(--accent-green)' }}>1 $NVT = ₦10.00</strong>
             </div>
           </div>
 
@@ -434,7 +434,7 @@ export default function FreeMining() {
 
           {/* ══ TOKEN LIQUIDITY NOTICE ══ */}
           <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Looking to liquidate tokens? Log in to your <Link to="/dashboard" style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}>User Dashboard</Link> to access the instant Token Settlement Desk (₦18/token).
+            Looking to liquidate tokens? Log in to your <Link to="/dashboard" style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}>User Dashboard</Link> to access the instant Token Settlement Desk (₦10/token).
           </div>
         </div>
       </div>

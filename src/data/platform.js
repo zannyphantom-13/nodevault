@@ -9,7 +9,7 @@
 // ══════════════════════════════════════════════════════
 const MAX_POOLS_NEXUS_UP = 1;
 
-function getMaxPools(tierId) {
+export function getMaxPools(tierId) {
   // Tiers 6–15: single pool (1)
   if (tierId >= 6) return 1;
   // Tiers 1–5: step down from 20 to 5
@@ -52,17 +52,17 @@ const FEES_US = [1, 2, 4, 8, 16, 32, 64, 128,
                  250, 400, 640, 1000, 1500, 2000, 2560];
 
 // ── Build tier array for a region ──
-// protocolMargin reflects the true platform-retained net (22.84% of pool inflow)
-// lockedCapital (40%) = capital never returned regardless of refund tier
+// Standard statutory capital protection guarantees 100% of validator principal
+// returned upon scheduled settlement / maturity, less only statutory non-refundable inflow charges.
 function buildTiers(fees) {
   return TIER_DEFS.map((def, i) => ({
     ...def,
-    fee:            fees[i],
-    maxRefundTierA: parseFloat((fees[i] * 0.70).toFixed(2)),
-    protocolMargin: parseFloat((fees[i] * 0.2284).toFixed(2)), // true net retained per 255-node pool
-    lockedCapital:  parseFloat((fees[i] * 0.40).toFixed(2)),   // non-refundable capital (display-only)
-    maxPools:       getMaxPools(def.id),
-    singleGroup:    def.id >= 6,   // Tiers 6–15 are single pool
+    fee:                     fees[i],
+    maxRefundTierA:          fees[i], // 100% Full Principal Returned
+    standardPrincipalRefund: fees[i], // 100% Full Principal Returned
+    protocolMargin:          parseFloat((fees[i] * 0.2284).toFixed(2)),
+    maxPools:                getMaxPools(def.id),
+    singleGroup:             def.id >= 6,   // Tiers 6–15 are single pool
   }));
 }
 
@@ -90,8 +90,8 @@ export const REGIONS = {
       activePools:      1487,
       totalStaked:      4820000000,
       yieldDistributed: 963000000,
-      graduates:        342,
-      avgApy:           12.0,
+      activeValidators: 18742,
+      avgApy:           12.7,
     },
   },
   US: {
@@ -109,8 +109,8 @@ export const REGIONS = {
       activePools:      697,
       totalStaked:      2840000,
       yieldDistributed: 412000,
-      graduates:        118,
-      avgApy:           12.0,
+      activeValidators: 9214,
+      avgApy:           12.7,
     },
   },
 };
@@ -131,15 +131,71 @@ export const TIER_CATEGORIES = {
 export const OUTBOUND_OPEX         = 0.03;  // 3% Platform OPEX on outbound payouts
 export const OUTBOUND_FEE_RATE     = 0.03;  // Total outbound deduction = OPEX only (tax reserve removed)
 
-// ── Refund constants ──
-export const REFUND_PROTECTION_RATE= 0.60;
+// ── Refund & Statutory Capital Protection constants ──
+// Under Federal Government Treasury Bill & NIBSS statutory regulation,
+// 100% of user principal is protected and returned upon scheduled maturity,
+// less only non-refundable statutory charges (OPEX, VAT, EMTL, gateway markup, early unbundling penalties).
+export const REFUND_PROTECTION_RATE= 1.00;  // 100% Statutory Principal Protection
 export const REFUND_LOCK_MONTHS    = 6;
 export const REFUND_TAX_RATE       = 0.03;  // 3% processing fee on refund disbursements
-export const TIER_A_REFUND_RATE    = 0.70;
+export const TIER_A_REFUND_RATE    = 1.00;  // 100% Principal Floor
 export const TIER_A_EARLY_PENALTY  = 0.10;  // 10% early exit penalty
 
-// ── Institutional yield (internal treasury rate) ──
-export const INSTITUTIONAL_YIELD_RATE = 0.12;  // 12% — internal yield rate
+// ── Institutional Sovereign Rate Engine (CBN / DMO 364D NTB Benchmark) ──
+/**
+ * Calculates Real / Investment Yield from NTB Stop Rate (Discount Rate d)
+ * Formula for 364-day bill: Price = 100 - (d * 364/365 * 100)
+ * Real Yield = d / (1 - (d * 364/365))
+ */
+export function calculateNTBRealYield(stopRatePct, tenorDays = 364) {
+  const d = Number(stopRatePct) / 100;
+  const factor = tenorDays / 365;
+  const realYield = d / (1 - d * factor);
+  return parseFloat((realYield * 100).toFixed(2));
+}
+
+/**
+ * Calculates Net Customer Sovereign APY based on protocol fee:
+ * Option A (REAL_YIELD_MINUS_FEE): Real Yield - Protocol Fee (e.g. 18.70% - 6.00% = 12.70%)
+ * Option B (DISCOUNT_SPREAD): Real yield calculated on (Stop Rate - Protocol Fee) (e.g. 15.80% - 6.00% = 9.80% -> 10.90%)
+ */
+export function calculateCustomerAPY(stopRatePct, protocolFeePct = 6.0, model = 'REAL_YIELD_MINUS_FEE', tenorDays = 364) {
+  if (model === 'DISCOUNT_SPREAD') {
+    const netDiscount = Math.max(0, Number(stopRatePct) - Number(protocolFeePct));
+    return calculateNTBRealYield(netDiscount, tenorDays);
+  }
+  const realYield = calculateNTBRealYield(stopRatePct, tenorDays);
+  return parseFloat(Math.max(0, realYield - Number(protocolFeePct)).toFixed(2));
+}
+
+// Active Benchmark: Central Bank of Nigeria (CBN) 364-Day NTB Sovereign Auction
+export const SOVEREIGN_BENCHMARK = {
+  auctionCode: 'CBN-NTB-364D-2026-W46',
+  tenorDays: 364,
+  stopRate: 15.80,         // 15.80% Auction Stop Rate (Discount rate)
+  realYield: 18.70,        // 18.70% Effective Real Investment Yield
+  protocolFee: 6.00,       // 6.00% NodeVault Infrastructure & Risk Reserve Fee
+  customerAPY: 12.70,      // 12.70% Net Sovereign APY to Customer
+  feeModel: 'REAL_YIELD_MINUS_FEE',
+  effectiveDate: '2026-11-05',
+  settlementAgency: 'Central Bank of Nigeria (CBN) / DMO Primary Auction',
+  status: 'active'
+};
+
+export function getActiveSovereignRate() {
+  try {
+    const cached = typeof window !== 'undefined' ? localStorage.getItem('nodevault_sovereign_rate') : null;
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.customerAPY) return parsed;
+    }
+  } catch (e) {
+    // fallback
+  }
+  return SOVEREIGN_BENCHMARK;
+}
+
+export const INSTITUTIONAL_YIELD_RATE = SOVEREIGN_BENCHMARK.customerAPY / 100;  // 0.127 (12.7%)
 export const NTB_YIELD_RATE           = INSTITUTIONAL_YIELD_RATE;
 
 // ── Pool governance ──
@@ -173,8 +229,84 @@ export const isTierAvailable = (tierId) => ENTRY_TIER_IDS.includes(tierId);
 // ── MINING TOKEN & ENTERPRISE SERVER ENGINE ──
 // ══════════════════════════════════════════════════════
 export const COIN_SYMBOL   = '$NVT';
-export const COIN_RATE_NGN = 18.00; // 1 $NVT = ₦18.00
-export const COIN_RATE_USD = 0.0120; // 1 $NVT = $0.0120 (≈ ₦18 at ₦1,500/$)
+export const COIN_RATE_NGN = 10.00; // 1 $NVT = ₦10.00 (Fixed Parity: 1 Point = 1 NVT)
+export const POINT_RATE_NVT = 1.0;  // 1 Point = 1 NVT
+export const COIN_RATE_USD = 0.0100; // 1 $NVT = $0.0100 (≈ ₦10 at ₦1,000/$)
+
+// ══════════════════════════════════════════════════════
+// ── AFFILIATE PROGRAM SPECIFICATION (NVT ENGINE) ──
+// Rates per ₦1,000 staked by the referred user:
+// 1 Point = 1 NVT = ₦10.00 NGN
+//
+// 1. One-time: 15 points (15 NVT = ₦150) per ₦1,000 staked.
+// 2. Mainline: 1 NVT / year (0.1 permanent + 0.9 conditional).
+// 3. Downline: 0.1 NVT / year (0.01 permanent + 0.09 conditional).
+//
+// Payment Timing (CHANGED): Full amount (permanent + conditional) is paid AT THE BEGINNING
+// into the affiliate's separate Referral NVT balance as soon as referred node is CONFIRMED.
+//
+// End-of-Tenure Audit: At 364 days, conditional portions for nodes cancelled at any
+// point become DEBT deducted from Referral NVT balance (shortfall recovered from future earnings).
+//
+// Caps (on affiliate's own active stake):
+//   Mainline: max 1000% of affiliate's own stake
+//   Downline: max 1200% of affiliate's own stake
+// ══════════════════════════════════════════════════════
+export const AFFILIATE_CONFIG = {
+  coinRateNgn: 10.00,
+  pointsPerNvt: 1,
+  options: {
+    'one-time': {
+      id: 'one-time',
+      label: 'One-Time Referral Commission',
+      ratePer1k: 15,             // 15 Points = 15 NVT per ₦1,000 staked
+      permanentShare: 1.0,       // 100% permanent
+      conditionalShare: 0.0,
+      yearlyCapMultiplier: null, // No yearly cap
+      description: '15 NVT points per ₦1,000 staked. Paid in full immediately into Referral NVT balance upon node confirmation.'
+    },
+    'mainline': {
+      id: 'mainline',
+      label: 'Mainline Annual Yield',
+      ratePer1k: 1.0,            // 1 NVT per year per ₦1,000 staked (paid full at beginning)
+      permanentRatePer1k: 0.1,   // 0.1 NVT permanent (never clawed back)
+      conditionalRatePer1k: 0.9, // 0.9 NVT conditional (audited at end of 364D tenure)
+      permanentShare: 0.10,      // 10%
+      conditionalShare: 0.90,    // 90%
+      yearlyCapMultiplier: 10.0, // 1000% of affiliate's own stake
+      description: '1 NVT/yr per ₦1,000 staked. Full amount paid at beginning into Referral NVT balance. 0.1 permanent + 0.9 conditional. Max 1000% cap.'
+    },
+    'downline': {
+      id: 'downline',
+      label: 'Downline Network Yield',
+      ratePer1k: 0.1,            // 0.1 NVT per year per ₦1,000 staked (paid full at beginning)
+      permanentRatePer1k: 0.01,  // 0.01 NVT permanent (never clawed back)
+      conditionalRatePer1k: 0.09,// 0.09 NVT conditional (audited at end of 364D tenure)
+      permanentShare: 0.10,      // 10%
+      conditionalShare: 0.90,    // 90%
+      yearlyCapMultiplier: 12.0, // 1200% of affiliate's own stake
+      description: '0.1 NVT/yr per ₦1,000 staked. Full amount paid at beginning into Referral NVT balance. 0.01 permanent + 0.09 conditional. Max 1200% cap.'
+    }
+  }
+};
+
+export const AFFILIATE_TIER_SCHEDULE = [
+  { tier: 1,  name: 'Micro Node',      category: 'Small',   fee: 1000,    oneTimeNvt: 15,    mainlineNvt: 1,    downlineNvt: 0.1,   mainlineCapNvt: 1000,    downlineCapNvt: 1200 },
+  { tier: 2,  name: 'Spark Node',      category: 'Small',   fee: 2000,    oneTimeNvt: 30,    mainlineNvt: 2,    downlineNvt: 0.2,   mainlineCapNvt: 2000,    downlineCapNvt: 2400 },
+  { tier: 3,  name: 'Alpha Node',      category: 'Small',   fee: 4000,    oneTimeNvt: 60,    mainlineNvt: 4,    downlineNvt: 0.4,   mainlineCapNvt: 4000,    downlineCapNvt: 4800 },
+  { tier: 4,  name: 'Delta Node',      category: 'Small',   fee: 8000,    oneTimeNvt: 120,   mainlineNvt: 8,    downlineNvt: 0.8,   mainlineCapNvt: 8000,    downlineCapNvt: 9600 },
+  { tier: 5,  name: 'Echo Node',       category: 'Small',   fee: 16000,   oneTimeNvt: 240,   mainlineNvt: 16,   downlineNvt: 1.6,   mainlineCapNvt: 16000,   downlineCapNvt: 19200 },
+  { tier: 6,  name: 'Prime Node',      category: 'Mid',     fee: 32000,   oneTimeNvt: 480,   mainlineNvt: 32,   downlineNvt: 3.2,   mainlineCapNvt: 32000,   downlineCapNvt: 38400 },
+  { tier: 7,  name: 'Sigma Node',      category: 'Mid',     fee: 64000,   oneTimeNvt: 960,   mainlineNvt: 64,   downlineNvt: 6.4,   mainlineCapNvt: 64000,   downlineCapNvt: 76800 },
+  { tier: 8,  name: 'Omega Node',      category: 'Mid',     fee: 128000,  oneTimeNvt: 1920,  mainlineNvt: 128,  downlineNvt: 12.8,  mainlineCapNvt: 128000,  downlineCapNvt: 153600 },
+  { tier: 9,  name: 'Nexus Node',      category: 'Premium', fee: 250000,  oneTimeNvt: 3750,  mainlineNvt: 250,  downlineNvt: 25.0,  mainlineCapNvt: 250000,  downlineCapNvt: 300000 },
+  { tier: 10, name: 'Apex Node',       category: 'Premium', fee: 400000,  oneTimeNvt: 6000,  mainlineNvt: 400,  downlineNvt: 40.0,  mainlineCapNvt: 400000,  downlineCapNvt: 480000 },
+  { tier: 11, name: 'Zenith Node',     category: 'Premium', fee: 640000,  oneTimeNvt: 9600,  mainlineNvt: 640,  downlineNvt: 64.0,  mainlineCapNvt: 640000,  downlineCapNvt: 768000 },
+  { tier: 12, name: 'Nova Node',       category: 'Premium', fee: 1000000, oneTimeNvt: 15000, mainlineNvt: 1000, downlineNvt: 100.0, mainlineCapNvt: 1000000, downlineCapNvt: 1200000 },
+  { tier: 13, name: 'Titan Node',      category: 'Premium', fee: 1500000, oneTimeNvt: 22500, mainlineNvt: 1500, downlineNvt: 150.0, mainlineCapNvt: 1500000, downlineCapNvt: 1800000 },
+  { tier: 14, name: 'Sovereign Node',  category: 'Premium', fee: 2000000, oneTimeNvt: 30000, mainlineNvt: 2000, downlineNvt: 200.0, mainlineCapNvt: 2000000, downlineCapNvt: 2400000 },
+  { tier: 15, name: 'Genesis Supreme', category: 'Elite',   fee: 2560000, oneTimeNvt: 38400, mainlineNvt: 2560, downlineNvt: 256.0, mainlineCapNvt: 2560000, downlineCapNvt: 3072000 },
+];
 
 export const ENTERPRISE_SERVERS = {
   0: {
@@ -372,7 +504,7 @@ export function calculateGiftFuel(giftAmount, regionCode = 'NG') {
   if (amt <= 0) {
     return { cycles: 0, computeCredits: 0, powerUnits: 0, totalCoinsExpected: 0, coinRate: rate, remainingAmount: 0 };
   }
-  // Each cycle = 1 token ($NVT) worth `rate` (₦18)
+  // Each cycle = 1 token ($NVT) worth `rate` (₦10)
   const cycles = Math.floor(amt / rate);
   const totalCoinsExpected = cycles; // 1 cycle yields 1 coin
   const convertedAmount = parseFloat((cycles * rate).toFixed(2));
@@ -458,20 +590,78 @@ export const OUTBOUND_TRANSFER_FEE_US = 1;   // $1 flat
 export const REFUND_WINDOW_START_DAY = 25; // Month-end window: 25th to 28th
 export const REFUND_WINDOW_END_DAY   = 28;
 export const REFUND_PROCESSING_DAYS  = 3;  // Minimum 3 business days
-export const EARLY_EXIT_PENALTY_RATE = 0.10; // 10% for requests before 25th
+export const EARLY_EXIT_PENALTY_RATE = 0.10; // Default fallback early exit penalty
+
+// ── NIBSS-Aligned Tenure-Graduated Liquidity Schedule ──
+// Statutory Capital Protection ensures 100% principal return upon maturity / scheduled windows.
+// Early exits incur only early unbundling fees deducted from the 100% principal.
+export const EARLY_EXIT_SCHEDULE = [
+  {
+    tier: 'immediate',
+    label: 'Emergency Immediate (Days 1–30)',
+    minDays: 0,
+    maxDays: 30,
+    penaltyRate: 0.15, // 15% penalty
+    effectiveFloorRate: 0.85, // 85% net principal returned
+    settlementWindow: 'Audit + 48h NIBSS Dispatch',
+    description: 'Immediate liquidity unlock within first 30 days of node deployment.',
+  },
+  {
+    tier: 'early',
+    label: 'Early Liquidity Unbundle (Days 31–90)',
+    minDays: 31,
+    maxDays: 90,
+    penaltyRate: 0.10, // 10% penalty
+    effectiveFloorRate: 0.90, // 90% net principal returned
+    settlementWindow: 'Batch NIBSS Direct Credit (24–48h)',
+    description: 'Mid-quarter unbundling from treasury backing reserves.',
+  },
+  {
+    tier: 'late',
+    label: 'Late Cycle Liquidity Release (Days 91–180)',
+    minDays: 91,
+    maxDays: 180,
+    penaltyRate: 0.05, // 5% penalty
+    effectiveFloorRate: 0.95, // 95% net principal returned
+    settlementWindow: 'Automated NIBSS Direct Credit (24h)',
+    description: 'Near-term release prior to the standard maturity unlock.',
+  },
+  {
+    tier: 'standard',
+    label: 'Scheduled Month-End Window (25th–28th) / 364-Day Maturity',
+    minDays: 181,
+    maxDays: Infinity,
+    penaltyRate: 0.00, // 0% penalty
+    effectiveFloorRate: 1.00, // 100% full principal returned
+    settlementWindow: 'Instant Automated NIBSS Clearing',
+    description: '100% full principal returned with zero emergency release penalty via Instant Automated NIBSS Clearing.',
+  },
+];
+
+export function getEarlyExitBracket(days = 0, isEndOfMonth = false) {
+  if (isEndOfMonth) {
+    return EARLY_EXIT_SCHEDULE[3];
+  }
+  const match = EARLY_EXIT_SCHEDULE.find((bracket) => days <= bracket.maxDays);
+  return match || EARLY_EXIT_SCHEDULE[0];
+}
 
 // ══════════════════════════════════════════════════════
 // ── CHECKOUT CALCULATION ENGINE ──
 // Returns a full itemized breakdown for the user's payment modal.
 // ══════════════════════════════════════════════════════
-export function calculateCheckout(baseFee, regionCode = 'NG') {
+export function calculateCheckout(baseFee, regionCode = 'NG', isFirstNodeRegistration = false, optInReferral = false) {
   const isNG = regionCode === 'NG';
 
-  // 1. Platform OPEX fee (9% inbound)
+  // 1. Platform OPEX fee (5% inbound)
   const opexFee = parseFloat((baseFee * CHECKOUT_OPEX_RATE).toFixed(2));
 
   // 2. Network Referral Programme Reserve (30% of base fee — funds referral pool)
-  const referralReserve = parseFloat((baseFee * CHECKOUT_REFERRAL_RESERVE_RATE).toFixed(2));
+  // ONLY charged when it is user's first node registration AND they explicitly opt into the referral programme!
+  const isReferralEligible = Boolean(isFirstNodeRegistration && optInReferral);
+  const referralReserve = isReferralEligible
+    ? parseFloat((baseFee * CHECKOUT_REFERRAL_RESERVE_RATE).toFixed(2))
+    : 0;
 
   // 3. Gateway pass-through markup (charged to user)
   const gatewayMarkup = parseFloat((baseFee * CHECKOUT_GATEWAY_RATE).toFixed(2));
@@ -502,6 +692,7 @@ export function calculateCheckout(baseFee, regionCode = 'NG') {
     baseFee,
     opexFee,
     referralReserve,
+    isReferralEligible,
     gatewayMarkup,
     vatAmount,
     vatRemittedToFIRS,
@@ -511,11 +702,13 @@ export function calculateCheckout(baseFee, regionCode = 'NG') {
     platformFeeSpread,
     // Formatted line items for checkout UI
     lineItems: [
-      { label: 'Node Staking Fee',                    amount: baseFee,          note: 'Enters protocol vault' },
-      { label: 'Network Referral Reserve (30%)',       amount: referralReserve,  note: 'Referral programme pool' },
-      { label: 'Platform Operating Fee (5.0%)',        amount: opexFee,          note: 'Infrastructure & maintenance' },
-      { label: 'Gateway & Network Fee (3.0%)',         amount: gatewayMarkup,    note: 'Payment processing charge' },
-      { label: 'VAT on Fees (7.5%)',                   amount: vatAmount,        note: 'Applied to service fees only' },
+      { label: 'Node Staking Principal',               amount: baseFee,         note: '100% Statutory Principal Protection' },
+      ...(referralReserve > 0 ? [
+        { label: 'One-Time Referral Network License (30%)', amount: referralReserve, note: 'Unlocks lifetime affiliate earnings' }
+      ] : []),
+      { label: 'Platform Operating Fee (5.0%)',        amount: opexFee,         note: 'Inbound infrastructure & hosting' },
+      { label: 'Gateway & Network Fee (3.0%)',         amount: gatewayMarkup,   note: 'Payment processing charge' },
+      { label: 'VAT on Fees (7.5%)',                   amount: vatAmount,       note: 'Applied to service fees only' },
       ...(emtlLevy ? [{ label: 'Transfer Levy (EMTL)', amount: emtlLevy,        note: 'CBN statutory bank duty' }] : []),
     ],
   };
@@ -578,59 +771,42 @@ export function calculateWithdrawal(grossAmount, regionCode = 'NG', tierId = 1) 
 // ══════════════════════════════════════════════════════
 // ── REFUND CALCULATION ENGINE (currency-agnostic) ──
 // ══════════════════════════════════════════════════════
-export function calculateRefund(entryFee, cumulativeGifts, monthsActive = 0, isEndOfMonth = false) {
-  const giftsRatio = entryFee > 0 ? cumulativeGifts / entryFee : 0;
+export function calculateRefund(entryFee, cumulativeGifts, monthsActive = 0, isEndOfMonth = false, holdingDays = 0) {
+  const fee = Number(entryFee) || 0;
+  const gifts = Number(cumulativeGifts) || 0;
+  const giftsRatio = fee > 0 ? gifts / fee : 0;
   
-  let eligibilityTier, grossRefund, note, badgeColor, penalty = 0;
+  const days = holdingDays || (monthsActive * 30);
+  const exitBracket = getEarlyExitBracket(days, isEndOfMonth);
 
-  if (cumulativeGifts === 0) {
-    // Tier A
-    eligibilityTier = 'A';
-    grossRefund     = entryFee * TIER_A_REFUND_RATE;
-    if (!isEndOfMonth) {
-      penalty = grossRefund * TIER_A_EARLY_PENALTY;
-      note = 'Tier A Full Protection (Early Withdrawal - 10% penalty applied).';
-      badgeColor = 'amber';
-    } else {
-      note = 'Tier A Full Protection — No yield distributions received (End of Month).';
-      badgeColor = 'green';
-    }
-    grossRefund -= penalty;
-  } else if (cumulativeGifts < entryFee * REFUND_PROTECTION_RATE) {
-    // Tier B
-    if (monthsActive < REFUND_LOCK_MONTHS) {
-      eligibilityTier = 'Locked';
-      grossRefund     = 0;
-      note            = `Refunds are locked for the first ${REFUND_LOCK_MONTHS} months (Tier B).`;
-      badgeColor      = 'amber';
-    } else {
-      eligibilityTier = 'B';
-      grossRefund = (entryFee * REFUND_PROTECTION_RATE) - cumulativeGifts;
-      note = `Tier B Partial Protection. Remaining balance up to 60% cap.`;
-      badgeColor = 'green';
-    }
-  } else {
-    // Tier C
-    eligibilityTier = 'C';
-    grossRefund     = 0;
-    note            = `Tier C Disqualified — Yield distributions received (${(giftsRatio * 100).toFixed(1)}%) meet or exceed the 60% cap.`;
-    badgeColor      = 'red';
-  }
+  // 100% Principal Protection under Government / CBN Treasury Regulation
+  // Penalty applies only to early unbundling (15% to 0% based on graduated schedule)
+  const penalty = parseFloat((fee * exitBracket.penaltyRate).toFixed(2));
+  const grossRefund = parseFloat((fee * exitBracket.effectiveFloorRate).toFixed(2));
+  
+  const eligibilityTier = exitBracket.penaltyRate === 0 ? 'Matured / Full' : 'Early Exit';
+  const badgeColor = exitBracket.penaltyRate === 0 ? 'green' : 'cyan';
+  const note = exitBracket.penaltyRate === 0
+    ? '100% Principal Returned under Federal Statutory Policy. Automated NIBSS Instant Clearing.'
+    : `Statutory Liquidity Release (${exitBracket.label} — ${(exitBracket.penaltyRate * 100).toFixed(0)}% early unbundling fee applied). Settlement: ${exitBracket.settlementWindow}.`;
 
-  // "tax of 3% applies to refund no other tax"
-  const outboundFeeAmount = grossRefund * REFUND_TAX_RATE;
-  const netPayout         = grossRefund - outboundFeeAmount;
+  // Processing fee on disbursement
+  const outboundFeeAmount = parseFloat((grossRefund * REFUND_TAX_RATE).toFixed(2));
+  const netPayout = parseFloat(Math.max(0, grossRefund - outboundFeeAmount).toFixed(2));
 
   return {
     eligibilityTier,
     badgeColor,
-    grossRefund:        parseFloat(grossRefund.toFixed(2)),
-    penaltyAmount:      parseFloat(penalty.toFixed(2)),
-    outboundFeeAmount:  parseFloat(outboundFeeAmount.toFixed(2)),
-    netPayout:          parseFloat(netPayout.toFixed(2)),
-    giftsRatio:         parseFloat((giftsRatio * 100).toFixed(1)),
+    grossRefund,
+    penaltyAmount: penalty,
+    penaltyRate: exitBracket.penaltyRate,
+    settlementWindow: exitBracket.settlementWindow,
+    outboundFeeAmount,
+    netPayout,
+    giftsRatio: parseFloat((giftsRatio * 100).toFixed(1)),
     note,
     monthsActive,
+    holdingDays: days,
   };
 }
 
@@ -651,6 +827,132 @@ export function applyOutboundFee(gross) {
 //   'mainline' → 1% per annum on the mainline direct referral
 //   'downline'  → 0.1% per annum per level (max 7 binary levels)
 // ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// ── AFFILIATE REWARD ENGINE (NVT POINTS) ──
+// Rates per ₦1,000 staked by the referred user:
+// 1 Point = 1 NVT = ₦10.00
+// 
+// 1. One-time: 15 points (15 NVT = ₦150) per ₦1,000 staked
+// 2. Mainline: 1 NVT per year per ₦1,000 staked (0.1 permanent + 0.9 conditional)
+// 3. Downline: 0.1 NVT per year per ₦1,000 staked (0.01 permanent + 0.09 conditional)
+//
+// Payment Timing (CHANGED): Full amount (permanent + conditional) is paid AT THE BEGINNING
+// into the affiliate's separate Referral NVT balance as soon as referred node is CONFIRMED.
+//
+// End-of-Tenure Audit: At 364 days, conditional portions for nodes cancelled at any
+// point become DEBT deducted from Referral NVT balance (shortfall recovered from future earnings).
+//
+// Inactive Rule: Permanent parts wait and never stack (max 1 waiting portion per node).
+// Yearly Cap: Max 1000% (mainline) or 1200% (downline) of affiliate's own stake.
+// ══════════════════════════════════════════════════════
+export function calculateAffiliateRewards({
+  programOption = 'mainline', // 'one-time' | 'mainline' | 'downline'
+  affiliateStake = 1000,      // Affiliate's own active stake in NGN
+  referredNodes = [],         // Array of { nodeId, userId, stakeAmount, status, cancelledInCycle, confirmed }
+  cycleDaysElapsed = 0,       // Days into affiliate's 364-day cycle
+  affiliateIsActive = true,
+  claimedEarningsNVT = 0,     // Total already credited in current cycle toward cap
+  currentDebtNVT = 0          // Existing carried-forward debt
+}) {
+  const opt = AFFILIATE_CONFIG.options[programOption] || AFFILIATE_CONFIG.options['mainline'];
+  
+  // 1. Calculate Yearly Cap in NVT (Section 9)
+  // Example: ₦1,000 stake -> 1,000 NVT (mainline 1000%) or 1,200 NVT (downline 1200%)
+  const yearlyCapNVT = opt.yearlyCapMultiplier 
+    ? (affiliateStake / 1000) * (opt.id === 'mainline' ? 1000 : 1200)
+    : Infinity;
+
+  const remainingCapNVT = Math.max(0, yearlyCapNVT - claimedEarningsNVT);
+
+  let totalPermanentNVT = 0;
+  let totalConditionalNVT = 0;
+  let tenureDebtNVT = 0;
+  let waitingPermanentNVT = 0;
+  const nodeBreakdowns = [];
+
+  for (const node of referredNodes) {
+    const stake = Number(node.stakeAmount) || 0;
+    const unitsOf1k = stake / 1000;
+
+    let nodePermanent = 0;
+    let nodeConditional = 0;
+
+    if (opt.id === 'one-time') {
+      nodePermanent = unitsOf1k * 15; // 15 points (15 NVT)
+      nodeConditional = 0;
+    } else if (opt.id === 'mainline') {
+      nodePermanent = unitsOf1k * 0.1; // 0.1 NVT permanent
+      nodeConditional = unitsOf1k * 0.9; // 0.9 NVT conditional
+    } else if (opt.id === 'downline') {
+      nodePermanent = unitsOf1k * 0.01; // 0.01 NVT permanent
+      nodeConditional = unitsOf1k * 0.09; // 0.09 NVT conditional
+    }
+
+    const wasCancelled = Boolean(node.cancelledInCycle || node.status === 'cancelled');
+
+    // Section 7: If affiliate is inactive, permanent part waits (never stacks)
+    if (!affiliateIsActive) {
+      waitingPermanentNVT += nodePermanent;
+    }
+
+    // Section 6: End-of-tenure audit check (at 364 days)
+    // If node was cancelled at any point, conditional part becomes debt
+    if (cycleDaysElapsed >= 364 && wasCancelled) {
+      tenureDebtNVT += nodeConditional;
+    }
+
+    totalPermanentNVT += nodePermanent;
+    totalConditionalNVT += nodeConditional;
+
+    nodeBreakdowns.push({
+      nodeId: node.nodeId,
+      userId: node.userId,
+      stakeAmount: stake,
+      permanentNVT: parseFloat(nodePermanent.toFixed(4)),
+      conditionalNVT: parseFloat(nodeConditional.toFixed(4)),
+      fullInitialNVT: parseFloat((nodePermanent + nodeConditional).toFixed(4)),
+      wasCancelled,
+      status: wasCancelled ? 'cancelled' : (node.status || 'active'),
+    });
+  }
+
+  // Section 4: Full amount (permanent + conditional) paid at beginning if affiliate is active
+  const totalGrossDueNVT = affiliateIsActive
+    ? totalPermanentNVT + totalConditionalNVT
+    : 0;
+
+  // Payout capped at remaining cap
+  const cappedGrossPayoutNVT = parseFloat(Math.min(totalGrossDueNVT, remainingCapNVT).toFixed(4));
+
+  // Section 8: Debt recovery
+  const totalOwedDebt = currentDebtNVT + tenureDebtNVT;
+  const debtDeducted = Math.min(cappedGrossPayoutNVT, totalOwedDebt);
+  const netReleasedToBalanceNVT = parseFloat((cappedGrossPayoutNVT - debtDeducted).toFixed(4));
+  const remainingShortfallDebtNVT = parseFloat((totalOwedDebt - debtDeducted).toFixed(4));
+
+  const isMatured = cycleDaysElapsed >= 364;
+
+  return {
+    programOption: opt.id,
+    programLabel: opt.label,
+    affiliateStake,
+    yearlyCapNVT,
+    remainingCapNVT,
+    totalPermanentNVT: parseFloat(totalPermanentNVT.toFixed(4)),
+    totalConditionalNVT: parseFloat(totalConditionalNVT.toFixed(4)),
+    totalFullRewardNVT: parseFloat((totalPermanentNVT + totalConditionalNVT).toFixed(4)),
+    cappedGrossPayoutNVT,
+    tenureDebtNVT: parseFloat(tenureDebtNVT.toFixed(4)),
+    totalOwedDebt: parseFloat(totalOwedDebt.toFixed(4)),
+    debtDeducted: parseFloat(debtDeducted.toFixed(4)),
+    netReleasedToBalanceNVT,
+    remainingShortfallDebtNVT,
+    waitingPermanentNVT: parseFloat(waitingPermanentNVT.toFixed(4)),
+    isMatured,
+    nodeBreakdowns,
+  };
+}
+
 export function calculateReferralEarnings(stakingFee, relationshipType, levelDepth = 1) {
   const fee = Math.max(0, Number(stakingFee) || 0);
   let earnings = 0;
@@ -739,6 +1041,32 @@ export function formatCurrencyCompact(amount, region) {
 // Backward-compat helpers
 export const formatNaira        = (a) => formatCurrency(a, REGIONS.NG);
 export const formatNairaCompact = (a) => formatCurrencyCompact(a, REGIONS.NG);
+
+// ── $NVT Dual Projection Engine (Fixed Parity: 1 $NVT = ₦10.00 NGN | 1 Point = 1 NVT) ──
+export function toNVT(ngnAmount) {
+  const amt = Number(ngnAmount) || 0;
+  return amt / COIN_RATE_NGN;
+}
+
+export function formatNVT(nvtAmount, compact = false) {
+  const amt = Number(nvtAmount) || 0;
+  if (compact && amt >= 1000) {
+    if (amt >= 1_000_000) return `$NVT ${(amt / 1_000_000).toFixed(2)}M`;
+    return `$NVT ${(amt / 1000).toFixed(1)}K`;
+  }
+  return `$NVT ${amt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function formatProjected(ngnAmount, mode = 'NGN', compact = false) {
+  const amt = Number(ngnAmount) || 0;
+  if (mode === 'NVT') {
+    return formatNVT(toNVT(amt), compact);
+  }
+  if (compact && amt >= 1000) {
+    return formatNairaCompact(amt);
+  }
+  return formatNaira(amt);
+}
 
 // ══════════════════════════════════════════════════════
 // ── MOCK DATA ──

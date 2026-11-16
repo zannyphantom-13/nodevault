@@ -5,14 +5,14 @@ import './RegionSelect.css';
 
 const NG_HIGHLIGHTS = [
   { icon: '📊', label: '15 Node Tiers',         sub: '₦1,000 → ₦2,560,000' },
-  { icon: '🛡️', label: 'Capital Protection',     sub: 'Up to 70% guaranteed' },
+  { icon: '🛡️', label: 'Capital Protection',     sub: '100% Statutory Return' },
   { icon: '💰', label: 'Protocol Yield',     sub: '15–20% p.a.' },
   { icon: '👥', label: '5 Small Entry Tiers',    sub: 'Start from just ₦1,000' },
 ];
 
 const US_HIGHLIGHTS = [
   { icon: '📊', label: '15 Node Tiers',           sub: '$1 → $2,560' },
-  { icon: '🛡️', label: 'Capital Protection',     sub: 'Up to 70% guaranteed' },
+  { icon: '🛡️', label: 'Capital Protection',     sub: '100% Statutory Return' },
   { icon: '💰', label: 'Protocol Yield',          sub: '15–20% p.a.' },
   { icon: '🛡️', label: 'Single Group (Tier 9+)',  sub: 'Nexus → Genesis: 1 global pool' },
 ];
